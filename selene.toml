@@ -1,0 +1,19 @@
+# Selene - linter Luau (https://kampfkarren.github.io/selene/)
+#
+# `std = "roblox"` sprawia, że selene zna globalne API Roblox (game, workspace,
+# task, Instance, ...). Przy pierwszym uruchomieniu generuje sobie roblox.toml
+# z aktualnego API dumpa — ten plik jest w .gitignore, bo każdy generuje swój.
+
+std = "roblox"
+
+[lints]
+# Zmienne "na przyszłość" to w praktyce martwy kod. Jeśli coś jest naprawdę
+# nieużywane celowo (np. parametr callbacku), nazwij to `_nazwa`.
+unused_variable = "deny"
+
+# Shadowing w Luau potrafi ukryć realny błąd (np. `local player = player`),
+# ale w krótkich blokach jest idiomatyczne — zostawiamy jako ostrzeżenie.
+shadowing = "warn"
+
+# Odradzamy `global = ...` — wszystko przez moduły.
+global_usage = "deny"

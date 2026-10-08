@@ -1,14 +1,54 @@
-# A fast, small, safe, gradually typed embeddable scripting language derived from Lua
-#
-# https://github.com/luau-lang/luau
-# https://luau.org/
+# ---------------------------------------------------------------------------
+# Artefakty builda
+# ---------------------------------------------------------------------------
+# Pliki .rbxl/.rbxm NIE trafiają do repo. Są binarne, więc git nie umie ich
+# zmergować — dwie osoby edytujące ten sam plik = ręczne odtwarzanie pracy.
+# Źródłem prawdy jest src/ + default.project.json, a .rbxl generuje `rojo build`.
+build/
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+*.rbxl.lock
+*.rbxlx.lock
 
-# Code coverage
-coverage.out
+# Wyjątek: gotowe assety zrobione w Studio (modele, mapy) trzymamy świadomie
+# w assets/ i wersjonujemy — to pojedyncze pliki z jednym właścicielem.
+!assets/**/*.rbxm
+!assets/**/*.rbxmx
 
-# Profiling
-profile.out
-profile.svg
+# ---------------------------------------------------------------------------
+# Zależności (Wally)
+# ---------------------------------------------------------------------------
+# Packages/ jest generowane przez `wally install`. Commitujemy tylko wally.lock.
+Packages/
+ServerPackages/
+DevPackages/
 
-# Time trace
-trace.json
+# ---------------------------------------------------------------------------
+# Pliki generowane przez narzędzia
+# ---------------------------------------------------------------------------
+sourcemap.json
+globalTypes.d.luau
+roblox.toml
+
+# ---------------------------------------------------------------------------
+# Claude Code
+# ---------------------------------------------------------------------------
+# .claude/settings.json JEST w repo (wspólne ustawienia zespołu).
+# Lokalne nadpisania każdego z nas zostają na dysku.
+.claude/settings.local.json
+
+# ---------------------------------------------------------------------------
+# IDE / system
+# ---------------------------------------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/tasks.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~

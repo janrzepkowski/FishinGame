@@ -1,0 +1,22 @@
+# Rokit — menedżer narzędzi (https://github.com/rojo-rbx/rokit)
+#
+# Wersje są PRZYPIĘTE celowo. Gdyby nie były, wystarczyłoby, że jedna osoba
+# zaktualizuje StyLuę, i jej pierwszy commit przeformatuje pół repo —
+# a każdy kolejny PR będzie się rozjeżdżał na formatowaniu zamiast na kodzie.
+#
+# Setup u nowej osoby (Windows PowerShell):
+#   Invoke-RestMethod https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.ps1 | Invoke-Expression
+#   rokit install
+#
+# macOS / Linux:
+#   curl -fsSL https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
+#   rokit install
+#
+# Podbicie wersji = osobny PR, który przechodzi przez CI. Nigdy w PR-ze z feature'em.
+
+[tools]
+rojo = "rojo-rbx/rojo@7.7.1"
+stylua = "JohnnyMorganz/StyLua@2.5.2"
+selene = "Kampfkarren/selene@0.32.0"
+wally = "UpliftGames/wally@0.3.2"
+luau-lsp = "JohnnyMorganz/luau-lsp@1.70.1"

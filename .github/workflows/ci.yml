@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Nowy push na brancha ubija poprzedni, jeszcze trwający przebieg.
+# Przy trzech osobach pushujących po kilka razy na godzinę to różnica
+# między kolejką a natychmiastowym wynikiem.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Lint, typy, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Cache po hashu rokit.toml: dopóki wersje narzędzi się nie zmieniły,
+      # nie pobieramy ich ponownie z GitHub Releases.
+      - name: Cache narzędzi Rokit
+        uses: actions/cache@v4
+        with:
+          path: ~/.rokit
+          key: rokit-${{ runner.os }}-${{ hashFiles('rokit.toml') }}
+
+      - name: Instalacja Rokit
+        run: |
+          curl -fsSL https://raw.githubusercontent.com/rojo-rbx/rokit/main/scripts/install.sh | bash
+          echo "$HOME/.rokit/bin" >> "$GITHUB_PATH"
+
+      - name: Instalacja narzędzi z rokit.toml
+        run: rokit install --no-trust-check
+
+      - name: Wersje narzędzi
+        run: |
+          rojo --version
+          stylua --version
+          selene --version
+          luau-lsp --version
+
+      # --check, nie `stylua src`: CI nie poprawia formatowania za autora,
+      # tylko mówi, że jest nie po naszemu. Poprawka należy do PR-a.
+      - name: Formatowanie (stylua --check)
+        run: stylua --check src
+
+      - name: Lint (selene)
+        run: selene src
+
+      - name: Sourcemap dla analizy typów
+        run: rojo sourcemap default.project.json --output sourcemap.json
+
+      # Definicje globalnego API Roblox. Przypięte do konkretnego taga
+      # luau-lsp, a nie do `main` — inaczej aktualizacja upstreamu mogłaby
+      # wywrócić CI na PR-ze, który niczego nie zmienił.
+      - name: Definicje typów Roblox
+        run: |
+          curl -fsSL -o globalTypes.d.luau \
+            https://raw.githubusercontent.com/JohnnyMorganz/luau-lsp/1.70.1/scripts/globalTypes.d.luau
+
+      - name: Analiza typów (luau-lsp)
+        run: |
+          luau-lsp analyze \
+            --sourcemap=sourcemap.json \
+            --definitions=globalTypes.d.luau \
+            --platform=roblox \
+            --base-luaurc=.luaurc \
+            --ignore="Packages/**" \
+            src
+
+      - name: Build pliku miejsca
+        run: rojo build default.project.json --output build/FishinGame.rbxl
+
+      # Gotowy .rbxl do pobrania z PR-a. Recenzent może go otworzyć w Studio
+      # i zagrać, zamiast wierzyć na słowo, że „u mnie działa”.
+      - name: Artefakt .rbxl
+        uses: actions/upload-artifact@v4
+        with:
+          name: FishinGame-${{ github.sha }}
+          path: build/FishinGame.rbxl
+          retention-days: 14
+
+  guard:
+    name: Pliki zabronione
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    # Osobny job, nie kolejny krok w `check`: ten działa w kilka sekund
+    # i daje jasną odpowiedź „wszedł plik, który nie powinien”, bez czekania
+    # na cały toolchain.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Brak binariów Roblox poza assets/
+        run: |
+          found=$(git ls-files -- '*.rbxl' '*.rbxlx' '*.rbxm' '*.rbxmx' ':!:assets/**')
+          if [ -n "$found" ]; then
+            echo "::error::Pliki binarne Roblox w repo. Dozwolone tylko w assets/."
+            echo "::error::Git nie umie ich mergować — źródłem prawdy jest src/."
+            echo "$found"
+            exit 1
+          fi
+          echo "OK — brak binariów poza assets/"
+
+      - name: Brak plików generowanych
+        run: |
+          found=$(git ls-files -- 'sourcemap.json' 'globalTypes.d.luau' 'roblox.toml' 'build/**' 'Packages/**')
+          if [ -n "$found" ]; then
+            echo "::error::Pliki generowane nie należą do repo (patrz .gitignore):"
+            echo "$found"
+            exit 1
+          fi
+          echo "OK — brak plików generowanych"
+
+      - name: wally.lock obecny, gdy są zależności
+        run: |
+          # Bez lockfile'a każdy dostaje inne wersje paczek, a „u mnie działa”
+          # przestaje cokolwiek znaczyć.
+          deps=$(sed -n '/^\[dependencies\]/,$p' wally.toml | tail -n +2 | grep -cE '^[A-Za-z]' || true)
+          if [ "$deps" -gt 0 ] && [ ! -f wally.lock ]; then
+            echo "::error::wally.toml ma $deps zależności, ale brakuje wally.lock."
+            echo "::error::Uruchom 'wally install' i zacommituj wally.lock."
+            exit 1
+          fi
+          echo "OK — zależności: $deps"

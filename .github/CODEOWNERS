@@ -1,0 +1,32 @@
+# CODEOWNERS — kto jest automatycznie dopisywany jako recenzent.
+#
+# To NIE jest przypisanie własności ("nie dotykaj mojego folderu"), tylko
+# routing recenzji: osoba, która zna dany obszar, dowiaduje się o zmianie.
+# Każdy może pracować wszędzie.
+#
+# !!! DO UZUPEŁNIENIA: podmień @dev2 i @dev3 na prawdziwe nicki z GitHuba,
+# inaczej GitHub cicho zignoruje te wpisy i nikt nie dostanie powiadomienia.
+#
+# Działa tylko przy włączonym "Require review from Code Owners"
+# w ustawieniach branch protection — patrz docs/WORKFLOW.md.
+
+# Domyślnie: cokolwiek nieprzypisane poniżej
+*                       @janrzepkowski
+
+# Fundament — zmiany tutaj dotykają wszystkich, więc recenzuje całość zespołu
+/rokit.toml             @janrzepkowski @dev2 @dev3
+/default.project.json   @janrzepkowski @dev2 @dev3
+/stylua.toml            @janrzepkowski @dev2 @dev3
+/selene.toml            @janrzepkowski @dev2 @dev3
+/.github/               @janrzepkowski @dev2 @dev3
+/CLAUDE.md              @janrzepkowski @dev2 @dev3
+
+# Kontrakt klient-serwer — najdroższy obszar w utrzymaniu,
+# bo każda zmiana dotyka obu stron naraz
+/src/shared/Net.luau    @janrzepkowski @dev2 @dev3
+/src/shared/Types.luau  @janrzepkowski @dev2 @dev3
+
+# Obszary wg podziału z docs/WORKFLOW.md
+/src/server/            @janrzepkowski
+/src/client/            @dev2
+/src/shared/Config/     @dev3

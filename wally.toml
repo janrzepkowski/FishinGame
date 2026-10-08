@@ -1,0 +1,23 @@
+[package]
+name = "janrzepkowski/fishin-game"
+version = "0.1.0"
+registry = "https://github.com/UpliftGames/wally-index"
+realm = "shared"
+license = "MIT"
+
+# MVP stoi na czystym API Roblox — zero zależności. Tak jest celowo:
+# każda paczka to kolejna rzecz do aktualizowania i kolejne źródło konfliktów.
+#
+# Jak dodać pierwszą paczkę:
+#   1. wally add <scope>/<paczka>@<wersja>
+#   2. wally install
+#   3. w default.project.json, pod "ReplicatedStorage", dopisz:
+#        "Packages": { "$path": "Packages" }
+#   4. zacommituj wally.lock — to on gwarantuje, że cała trójka ma te same wersje
+#
+# Kandydaci, gdy projekt podrośnie:
+#   sleitnick/signal      - sygnały serwer<->serwer bez BindableEvent
+#   evaera/promise        - sensowna obsługa błędów w kodzie asynchronicznym
+#   elttob/fusion         - reaktywne UI (zamiast ręcznego Instance.new)
+#   grilme99/profilestore - profile graczy z session lockiem (patrz DataService)
+[dependencies]

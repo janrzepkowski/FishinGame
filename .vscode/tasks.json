@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Rojo: serve (sync do Studio)",
+      "type": "shell",
+      "command": "rojo serve",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "rojo" }
+    },
+    {
+      "label": "Rojo: sourcemap (watch)",
+      "detail": "Trzymaj to włączone — bez sourcemapy luau-lsp nie rozumie ścieżek do modułów.",
+      "type": "shell",
+      "command": "rojo sourcemap default.project.json --output sourcemap.json --watch",
+      "problemMatcher": [],
+      "isBackground": true,
+      "presentation": { "panel": "dedicated", "group": "rojo" }
+    },
+    {
+      "label": "Build: .rbxl do build/",
+      "type": "shell",
+      "command": "rojo build default.project.json --output build/FishinGame.rbxl",
+      "problemMatcher": [],
+      "group": "build"
+    },
+    {
+      "label": "Check: selene + stylua + typy",
+      "type": "shell",
+      "command": "selene src && stylua --check src && rojo sourcemap default.project.json --output sourcemap.json && luau-lsp analyze --sourcemap=sourcemap.json --settings=.luaurc.analyze.json --ignore=Packages/** src",
+      "problemMatcher": [],
+      "group": { "kind": "test", "isDefault": true }
+    }
+  ]
+}
