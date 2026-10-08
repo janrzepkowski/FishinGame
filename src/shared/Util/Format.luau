@@ -48,4 +48,10 @@ function Format.seconds(value: number): string
 	return `{withDecimalComma(string.format("%.1f", value))} s`
 end
 
+--[[ 11.0 -> "11 m" — głębokość wody. Bez części dziesiętnych, bo dno
+     jest schodkowe i ułamki sugerowałyby precyzję, której nie ma. ]]
+function Format.meters(value: number): string
+	return `{math.floor(value + 0.5)} m`
+end
+
 return table.freeze(Format)

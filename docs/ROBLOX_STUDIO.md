@@ -174,6 +174,19 @@ Projekt ma przypięte `servePlaceIds`, a otwarte miejsce ma inne ID. W tym repo
 nie przypinamy ID, więc jeśli to widzicie, ktoś dopisał je do
 `default.project.json` — usuńcie albo dopiszcie swoje.
 
+**Otworzyłem `build/FishinGame.rbxl` i zmiany nie działają**
+
+Studio **nie przeładowuje** otwartego pliku, gdy `rojo build` nadpisze go na
+dysku. Trzymasz w pamięci kopię sprzed zmian i możesz klikać Play dowolną
+liczbę razy — zobaczysz starą wersję.
+
+Plik `.rbxl` jest do publikacji, nie do codziennej pracy. Do pracy używaj
+`rojo serve` + pusty Baseplate + Connect: wtedy każda zmiana trafia do Studio
+od razu, a Shift+F5 → F5 przebudowuje świat.
+
+Gdy już musisz testować z pliku: zamknij go **bez zapisywania**, zbuduj
+od nowa, otwórz ponownie. W tej kolejności.
+
 **Zmiany w plikach nie docierają do Studio**
 
 - plugin pokazuje „Connected"? Po restarcie Studio trzeba połączyć ponownie

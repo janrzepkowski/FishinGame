@@ -1,0 +1,40 @@
+# Końce linii — wymuszone LF wszędzie, niezależnie od systemu.
+#
+# Bez tego pliku Windows z `core.autocrlf = true` (domyślne w instalatorze
+# Gita) wypakowuje pliki z CRLF. StyLua jest skonfigurowana na
+# `line_endings = "Unix"`, więc `stylua --check src` zaczyna padać na plikach,
+# których nikt nie dotykał — a CI na Linuksie przechodzi, bo tam checkout
+# daje LF. Objaw: „u mnie nie przechodzi, a na CI zielone", i godzina
+# szukania winy w kodzie.
+#
+# `eol=lf` nadpisuje autocrlf dla tego repo i nikt nie musi nic ustawiać
+# u siebie globalnie.
+* text=auto eol=lf
+
+*.luau  text eol=lf
+*.lua   text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+
+# Pliki Robloxa traktujemy jako binarne — także te w formacie XML (.rbxlx,
+# .rbxmx). Git i tak nie zmerguje ich sensownie, a oznaczenie jako tekst
+# dawałoby tysiące linii nieczytelnego diffa przy każdej zmianie.
+*.rbxl   binary
+*.rbxlx  binary
+*.rbxm   binary
+*.rbxmx  binary
+
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ogg  binary
+*.mp3  binary
+*.wav  binary
+
+# Pliki generowane nie zaśmiecają diffa w PR-ach (gdyby mimo .gitignore
+# kiedyś trafiły do repo).
+sourcemap.json    linguist-generated=true
+globalTypes.d.luau linguist-generated=true

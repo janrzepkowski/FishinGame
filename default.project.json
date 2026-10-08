@@ -32,31 +32,54 @@
     "Workspace": {
       "$properties": {
         "FilteringEnabled": true
-      },
-      "Baseplate": {
-        "$className": "Part",
-        "$properties": {
-          "Anchored": true,
-          "BottomSurface": "Smooth",
-          "Color": [0.321568, 0.439215, 0.243137],
-          "Locked": true,
-          "Material": "Grass",
-          "Position": [0, -10, 0],
-          "Size": [512, 20, 512],
-          "TopSurface": "Smooth"
-        }
       }
     },
 
     "Lighting": {
       "$properties": {
-        "Ambient": [0.101960, 0.117647, 0.156862],
-        "Brightness": 2.5,
-        "ClockTime": 15,
+        "Ambient": [0.117647, 0.133333, 0.168627],
+        "Brightness": 2.8,
+        "ClockTime": 15.5,
+        "EnvironmentDiffuseScale": 0.45,
+        "EnvironmentSpecularScale": 0.35,
+        "ExposureCompensation": 0.15,
+        "GeographicLatitude": 52,
         "GlobalShadows": true,
-        "OutdoorAmbient": [0.419607, 0.470588, 0.541176],
+        "OutdoorAmbient": [0.447058, 0.498039, 0.564705],
         "Outlines": false,
+        "ShadowSoftness": 0.35,
         "Technology": "ShadowMap"
+      },
+
+      "Atmosphere": {
+        "$className": "Atmosphere",
+        "$properties": {
+          "Color": [0.788235, 0.819607, 0.862745],
+          "Decay": [0.419607, 0.470588, 0.556862],
+          "Density": 0.32,
+          "Glare": 0.25,
+          "Haze": 1.1,
+          "Offset": 0.2
+        }
+      },
+
+      "Bloom": {
+        "$className": "BloomEffect",
+        "$properties": {
+          "Intensity": 0.55,
+          "Size": 22,
+          "Threshold": 1.65
+        }
+      },
+
+      "Grade": {
+        "$className": "ColorCorrectionEffect",
+        "$properties": {
+          "Brightness": 0.015,
+          "Contrast": 0.09,
+          "Saturation": 0.14,
+          "TintColor": [1, 0.988235, 0.964705]
+        }
       }
     },
 

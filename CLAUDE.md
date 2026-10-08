@@ -38,13 +38,13 @@ src/client/     -> StarterPlayerScripts.Client (tylko klient)
 | Gdzie | Co tam trafia |
 |---|---|
 | `shared/Types.luau` | każdy typ przechodzący granicę klient↔serwer lub do DataStore |
-| `shared/Config/` | liczby do tunowania, katalog ryb, drabinka wędek |
+| `shared/Config/` | liczby do tunowania, katalog ryb, drabinka wędek, **geometria jeziora** |
 | `shared/Net.luau` | **wszystkie** RemoteEventy — jedyne miejsce ich tworzenia |
 | `shared/Util/` | funkcje bezstanowe, używane po obu stronach |
 | `server/Services/` | logika gry; każdy serwis ma `start()` |
-| `server/World/` | budowa mapy |
+| `server/World/` | budowa mapy: `Build` (prymitywy), `Ground` (teren), `Dock`, `Market`, `Scenery` |
 | `client/Controllers/` | wejście gracza i reakcja na eventy serwera |
-| `client/UI/` | ekrany; każdy ma `mount(parent)` |
+| `client/UI/` | ekrany; każdy ma `mount(parent)`; `Theme` to system projektowy |
 | `client/Effects/` | efekty czysto lokalne (nie replikują się) |
 
 Kolejność startu jest w `src/server/init.server.luau` i `src/client/init.client.luau`.
@@ -70,6 +70,23 @@ Te pliki nie zawierają logiki gry — tylko kolejność. Nie dokładaj do nich 
 5. **Wersje narzędzi podbijamy osobnym PR-em.** Nigdy razem z feature'em —
    inaczej diff formatowania zasłoni diff logiki.
 
+6. **Matematyka licząca to samo po obu stronach ma JEDNĄ implementację
+   w `shared/`.** Dotyczy to punktu zarzucenia (`Spatial.castTarget`),
+   dociągnięcia go do wody (`Lake.clampToWater`) i głębokości
+   (`Lake.depthAt`). Gdy klient liczy po swojemu, spławik ląduje gdzie
+   indziej, niż serwer mierzy głębokość — i nikt nie wie, dlaczego ryby
+   „nie biorą tam, gdzie widać".
+
+7. **Mapa stawia się z `Build`, a nie z `Instance.new`.** Domyślnie części
+   NIE kolidują. Podłogi, deski, barierki i lady deklarują
+   `CanCollide = true` jawnie. Odwrotna domyślna wartość robi z koron drzew
+   niewidzialne ściany.
+
+8. **UI buduje się z `Theme`.** Kolory z `Theme.COLOR`, odstępy z `SPACE`,
+   rozmiary tekstu z `TEXT`. Panele montujemy w korzeniu z `Theme.mountRoot`,
+   nie wprost w ScreenGui — inaczej ominie je skalowanie. Wariant układu
+   na telefon dodaje się przez `Theme.onLayout`.
+
 ## Konwencje Luau
 
 - `--!strict` w każdym pliku. Bez wyjątków.
@@ -84,6 +101,13 @@ Te pliki nie zawierają logiki gry — tylko kolejność. Nie dokładaj do nich 
 - Komentarze mówią **dlaczego**, nie **co**. `-- zwiększ licznik` jest bezwartościowy.
 
 ## Czego nie robić
+
+- **Nie twórz wody przez `Terrain:FillBlock(..., Enum.Material.Water)`.**
+  Woda w Robloxie nie jest materiałem, tylko osobnym kanałem
+  `LiquidOccupancy`. FillBlock udaje, że jest, i robi to niespójnie —
+  potrafi zbudować całe dno i nie postawić ani kropli wody. Misę jeziora
+  pisze `Ground.writeLakeVoxels` przez `WriteVoxelChannels`. Kosztowało
+  to trzy nieudane podejścia; nie wracaj do FillBlock.
 
 - Nie dodawaj zależności Wally bez powodu opisanego w PR-ze. Każda paczka to
   kolejna rzecz do aktualizowania.

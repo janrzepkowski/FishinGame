@@ -1,219 +1,119 @@
 --!strict
 --[[
-	WorldBuilder — mapa budowana z kodu.
+	WorldBuilder — składa mapę z modułów i wystawia punkty zaczepienia.
 
-	Dlaczego z kodu, a nie w Studio:
-	Plik .rbxl jest binarny. Gdy dwie osoby edytują mapę w Studio i obie
-	zacommitują plik, git nie umie tego zmergować — ktoś odtwarza swoją pracę
-	ręcznie. Dopóki mapa to greybox (woda + pomost + dwa stoiska), kod jest
-	tańszy: merguje się jak tekst i widać go na PR-ze.
+	Ten plik nie buduje niczego sam. Ustala kolejność i oddaje serwisom to,
+	czego potrzebują. Każdy kawałek świata ma własny plik:
+
+	  Ground   — teren: ląd, plaża, misa jeziora z prawdziwą wodą Robloxa
+	  Dock     — pomost nad głęboką wodę
+	  Market   — plac, spawn, skup ryb, sklep wędkarski
+	  Scenery  — drzewa, kamienie, trzciny
+
+	Dlaczego mapa jest w kodzie, a nie plikiem .rbxl:
+	plik miejsca jest binarny, więc git go nie zmerguje. Gdy dwie osoby
+	zmienią mapę w Studio, jedna odtwarza swoją pracę ręcznie. Kod merguje
+	się jak tekst i widać go na PR-ze.
 
 	Gdy dojdzie do prawdziwego level designu:
-	  1. zróbcie model w Studio,
+	  1. zbuduj mapę w Studio,
 	  2. File -> Export Selection -> assets/Map.rbxm,
-	  3. w default.project.json, pod "Workspace":
-	       "Map": { "$path": "assets/Map.rbxm" }
-	  4. ten moduł zostawcie tylko do wystawiania punktów zaczepienia
-	     (`getWater`, `getFishBuyer`, `getRodShop`) — znajdowanych po nazwie
-	     w zaimportowanym modelu.
+	  3. w default.project.json, pod "Workspace": "Map": { "$path": "assets/Map.rbxm" },
+	  4. ten moduł zostaw do wystawiania punktów zaczepienia — niech szuka
+	     ich po nazwie w zaimportowanym modelu.
 	Plik .rbxm ma jednego właściciela i zmienia się rzadko, więc jest OK w repo.
+
+	UWAGA: geometrii jeziora NIE ma tutaj. Siedzi w `shared/Config/Lake`,
+	bo liczą z niej obie strony — serwer bonus za głębokość, klient pozycję
+	spławika i wskaźnik w HUD-zie.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 
-local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
+local LakeConfig = require(ReplicatedStorage.Shared.Config.Lake)
+
+local Dock = require(script.Parent.Dock)
+local Ground = require(script.Parent.Ground)
+local Market = require(script.Parent.Market)
+local Scenery = require(script.Parent.Scenery)
 
 local WorldBuilder = {}
 
--- ---------------------------------------------------------------------------
--- Układ poziomu
--- ---------------------------------------------------------------------------
--- Woda wystaje 0,25 studa nad baseplate i jest półprzezroczysta, więc czytamy
--- ją jako płyciznę nad dnem. To greybox — nie walczymy tu o urodę.
-local WATER_SIZE = Vector3.new(180, 6.25, 180)
-local WATER_CENTER = Vector3.new(0, -2.875, -140)
-
--- Pomost startuje na brzegu i wychodzi nad wodę.
-local SHORE_Z = -40
-local DOCK_LENGTH = 48
-local DOCK_WIDTH = 8
--- 1,2 studa, nie 3. Humanoid w Robloxie wchodzi na przeszkodę wysoką do ~2
--- studów; przy pokładzie na 3,25 gracz stałby obok pomostu i nie mógł na niego
--- wejść. Przy 1,45 (1,2 + połowa grubości deski) wchodzi się bez schodków,
--- a pokład nadal jest wyraźnie nad lustrem wody (0,25).
-local DOCK_HEIGHT = 1.2
-local PLANK_THICKNESS = 0.5
-local PLANK_LENGTH = 6
-
--- Płyta spawnu leży na baseplate (góra baseplate to y = 0), nie wisi nad nim.
--- Przy y = 4,5 gracz spadałby po zejściu z płyty.
-local SPAWN_POSITION = Vector3.new(0, 0.5, 24)
-local FISH_BUYER_POSITION = Vector3.new(-16, 2.5, 10)
-local ROD_SHOP_POSITION = Vector3.new(16, 2.5, 10)
-
 local CONTAINER_NAME = "World"
 
-local water: BasePart? = nil
+-- Resztki po szablonie miejsca, które Rojo zostawia w spokoju, bo nie ma ich
+-- w default.project.json.
+local TEMPLATE_LEFTOVERS = { "Baseplate", "SpawnLocation" }
+
 local fishBuyer: BasePart? = nil
 local rodShop: BasePart? = nil
 
--- ---------------------------------------------------------------------------
--- Pomocnicze
--- ---------------------------------------------------------------------------
+--[[
+	Usuwa Baseplate i spawn z szablonu Studio.
 
-local function makePart(name: string, size: Vector3, position: Vector3, parent: Instance): Part
-	local part = Instance.new("Part")
-	part.Name = name
-	part.Size = size
-	part.Position = position
-	part.Anchored = true
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	part.Parent = parent
-	return part
-end
+	To nie jest sprzątanie dla porządku, tylko naprawa konkretnego, bardzo
+	mylącego błędu. Rojo synchronizuje wyłącznie gałęzie opisane w projekcie,
+	więc gdy ktoś podłączy się do świeżego szablonu „Baseplate", oryginalna
+	płyta ZOSTAJE. Jej górna powierzchnia jest na y = 0 — dokładnie na
+	poziomie lustra wody. Gracz chodzi wtedy po niewidzialnej podłodze nad
+	całym jeziorem i wygląda to tak, jakby woda była trawą.
 
-local function makeLabel(text: string, subtitle: string, adornee: BasePart)
-	local billboard = Instance.new("BillboardGui")
-	billboard.Name = "Label"
-	billboard.Size = UDim2.fromOffset(220, 60)
-	billboard.StudsOffsetWorldSpace = Vector3.new(0, 3.4, 0)
-	billboard.AlwaysOnTop = true
-	billboard.MaxDistance = 120
-	billboard.Adornee = adornee
+	Drugi spawn z szablonu jest łagodniejszy, ale równie upierdliwy: Roblox
+	losuje między nim a naszym, więc co drugie wejście ląduje się gdzie indziej.
 
-	local title = Instance.new("TextLabel")
-	title.Name = "Title"
-	title.Size = UDim2.fromScale(1, 0.58)
-	title.BackgroundTransparency = 1
-	title.Font = Enum.Font.GothamBold
-	title.TextScaled = true
-	title.Text = text
-	title.TextColor3 = Color3.fromRGB(255, 255, 255)
-	title.TextStrokeTransparency = 0.4
-	title.Parent = billboard
-
-	local hint = Instance.new("TextLabel")
-	hint.Name = "Hint"
-	hint.Size = UDim2.fromScale(1, 0.42)
-	hint.Position = UDim2.fromScale(0, 0.58)
-	hint.BackgroundTransparency = 1
-	hint.Font = Enum.Font.Gotham
-	hint.TextScaled = true
-	hint.Text = subtitle
-	hint.TextColor3 = Color3.fromRGB(205, 212, 222)
-	hint.TextStrokeTransparency = 0.6
-	hint.Parent = billboard
-
-	billboard.Parent = adornee
-end
-
-local function makePrompt(
-	actionText: string,
-	keyCode: Enum.KeyCode,
-	parent: BasePart
-): ProximityPrompt
-	local prompt = Instance.new("ProximityPrompt")
-	prompt.ActionText = actionText
-	prompt.ObjectText = parent.Name
-	prompt.KeyboardKeyCode = keyCode
-	prompt.MaxActivationDistance = 12
-	prompt.HoldDuration = 0
-	prompt.RequiresLineOfSight = false
-	prompt.Parent = parent
-	return prompt
-end
-
--- ---------------------------------------------------------------------------
--- Budowa
--- ---------------------------------------------------------------------------
-
-local function buildWater(parent: Instance): BasePart
-	local part = makePart("Water", WATER_SIZE, WATER_CENTER, parent)
-	part.Material = Enum.Material.Glass
-	part.Color = Color3.fromRGB(46, 104, 138)
-	part.Transparency = 0.42
-	part.Reflectance = 0.12
-	-- Gracz ma łowić z brzegu/pomostu, nie wchodzić do wody.
-	part.CanCollide = true
-	return part
-end
-
-local function buildDock(parent: Instance)
-	local dock = Instance.new("Folder")
-	dock.Name = "Dock"
-	dock.Parent = parent
-
-	local plankCount = math.ceil(DOCK_LENGTH / PLANK_LENGTH)
-
-	for index = 1, plankCount do
-		local centerZ = SHORE_Z - (index - 0.5) * PLANK_LENGTH
-		local plank = makePart(
-			`Plank{index}`,
-			Vector3.new(DOCK_WIDTH, PLANK_THICKNESS, PLANK_LENGTH - 0.15),
-			Vector3.new(0, DOCK_HEIGHT, centerZ),
-			dock
-		)
-		plank.Material = Enum.Material.WoodPlanks
-		-- Deski naprzemiennie jaśniejsze/ciemniejsze — bez tego pomost jest
-		-- jedną wielką plamą i nie widać, gdzie się kończy.
-		plank.Color = if index % 2 == 0
-			then Color3.fromRGB(152, 114, 76)
-			else Color3.fromRGB(138, 102, 66)
-
-		-- Słupki tylko co drugą deskę — i tak ich nie widać, a to połowa części.
-		if index % 2 == 1 then
-			for _, side in { -1, 1 } do
-				-- Słupek sięga poniżej dna pokładu i wystaje nad niego ~0,45
-				-- studa, więc czyta się jako pal do wiązania łódki. Celowo
-				-- nisko: wyższe byłyby barierką i zasłaniałyby wodę.
-				local post = makePart(
-					`Post{index}{side}`,
-					Vector3.new(0.6, 5, 0.6),
-					Vector3.new(side * (DOCK_WIDTH / 2 - 0.4), DOCK_HEIGHT - 1.8, centerZ),
-					dock
-				)
-				post.Material = Enum.Material.Wood
-				post.Color = Color3.fromRGB(104, 76, 50)
-			end
+	Ruszamy tylko to, co leży bezpośrednio w Workspace i nie należy do nas.
+]]
+local function removeTemplateLeftovers()
+	for _, name in TEMPLATE_LEFTOVERS do
+		local leftover = Workspace:FindFirstChild(name)
+		if leftover then
+			leftover:Destroy()
+			warn(
+				`[WorldBuilder] usunięto "{name}" z szablonu Studio. `
+					.. "Mapę buduje kod — zawartość szablonu kolidowała z terenem."
+			)
 		end
 	end
 end
 
-local function buildStand(
-	name: string,
-	position: Vector3,
-	color: Color3,
-	parent: Instance
-): BasePart
-	local stand = makePart(name, Vector3.new(6, 5, 3), position, parent)
-	stand.Material = Enum.Material.WoodPlanks
-	stand.Color = color
+--[[
+	Szuka czegokolwiek, po czym dałoby się chodzić nad taflą jeziora.
 
-	local roof =
-		makePart("Roof", Vector3.new(7.5, 0.4, 4.5), position + Vector3.new(0, 3, 0), stand)
-	roof.Material = Enum.Material.Slate
-	roof.Color = Color3.fromRGB(72, 78, 88)
+	Objaw „woda jest, ale chodzę po niej" prawie nigdy nie wynika z samej
+	wody — pod stopami leży jakaś kolidująca część na poziomie y = 0.
+	Najczęściej Baseplate z szablonu, ale równie dobrze może to być czyjaś
+	platforma testowa albo model wklejony ręcznie w Studio, którego Rojo
+	nie widzi i nie usunie.
 
-	return stand
-end
+	Zamiast kasować cudze rzeczy w ciemno, wypisujemy pełne ścieżki.
+	Autor zmiany od razu wie, co usunąć, i nie traci wieczoru na zgadywanie.
+]]
+local function reportFloorsOverWater(ours: Instance)
+	local params = OverlapParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	-- Pomijamy własny świat i Terrain: woda JEST terenem, więc bez tego
+	-- wyłapalibyśmy sami siebie.
+	params.FilterDescendantsInstances = { ours, Workspace.Terrain }
+	params.MaxParts = 24
 
-local function buildSpawn(parent: Instance)
-	local spawn = Instance.new("SpawnLocation")
-	spawn.Name = "Spawn"
-	spawn.Size = Vector3.new(12, 1, 12)
-	spawn.Position = SPAWN_POSITION
-	spawn.Anchored = true
-	spawn.Material = Enum.Material.Pavement
-	spawn.Color = Color3.fromRGB(132, 138, 146)
-	spawn.Duration = 0
-	spawn.Parent = parent
+	local probe = CFrame.new(LakeConfig.CENTER.X, LakeConfig.SURFACE_Y, LakeConfig.CENTER.Z)
+	local size = Vector3.new(LakeConfig.HALF_SIZE * 2, 3, LakeConfig.HALF_SIZE * 2)
+
+	for _, part in Workspace:GetPartBoundsInBox(probe, size, params) do
+		if part.CanCollide then
+			warn(
+				`[WorldBuilder] "{part:GetFullName()}" koliduje na poziomie lustra wody `
+					.. "— gracz będzie po niej chodził. Usuń tę część z Workspace."
+			)
+		end
+	end
 end
 
 --[[
-	Buduje mapę. Idempotentne — ponowne wywołanie kasuje stary świat i stawia
-	nowy. Dzięki temu Rojo może wgrać zmianę w tym pliku bez restartu serwera.
+	Buduje świat od zera. Idempotentne: kasuje poprzedni i czyści teren,
+	więc Rojo może wgrać zmianę w którymkolwiek pliku World/ bez restartu
+	serwera gry.
 ]]
 function WorldBuilder.build()
 	local existing = Workspace:FindFirstChild(CONTAINER_NAME)
@@ -221,38 +121,30 @@ function WorldBuilder.build()
 		existing:Destroy()
 	end
 
+	removeTemplateLeftovers()
+
 	local container = Instance.new("Folder")
 	container.Name = CONTAINER_NAME
 	container.Parent = Workspace
 
-	water = buildWater(container)
-	buildDock(container)
-	buildSpawn(container)
+	-- Teren pierwszy: reszta stoi na nim i opiera się o poziom lustra wody.
+	Ground.build()
 
-	local buyer =
-		buildStand("Skup ryb", FISH_BUYER_POSITION, Color3.fromRGB(94, 118, 92), container)
-	buyer:SetAttribute(GameConfig.STAND_ATTRIBUTE, GameConfig.STAND_FISH_BUYER)
-	makeLabel("Skup ryb", "Sprzedaj cały połów", buyer)
-	makePrompt("Sprzedaj ryby", Enum.KeyCode.E, buyer)
-	fishBuyer = buyer
+	local stands = Market.build(container)
+	fishBuyer = stands.fishBuyer
+	rodShop = stands.rodShop
 
-	local shop =
-		buildStand("Sklep wędkarski", ROD_SHOP_POSITION, Color3.fromRGB(118, 104, 82), container)
-	shop:SetAttribute(GameConfig.STAND_ATTRIBUTE, GameConfig.STAND_ROD_SHOP)
-	makeLabel("Sklep wędkarski", "Kup lepszą wędkę", shop)
-	makePrompt("Otwórz sklep", Enum.KeyCode.E, shop)
-	rodShop = shop
+	Dock.build(container)
+	Scenery.build(container)
+
+	reportFloorsOverWater(container)
 end
 
 -- ---------------------------------------------------------------------------
 -- Punkty zaczepienia dla serwisów
 -- ---------------------------------------------------------------------------
 -- Zwracają `nil` przed `build()`. Wywołujący MUSI to obsłużyć — serwis nie ma
--- prawa wywalić serwera tylko dlatego, że ktoś pozmieniał kolejność startu.
-
-function WorldBuilder.getWater(): BasePart?
-	return water
-end
+-- prawa wywalić serwera dlatego, że ktoś pozmieniał kolejność startu.
 
 function WorldBuilder.getFishBuyer(): BasePart?
 	return fishBuyer
@@ -260,6 +152,11 @@ end
 
 function WorldBuilder.getRodShop(): BasePart?
 	return rodShop
+end
+
+--[[ Koniec pomostu — najgłębsza woda w zasięgu pieszego. ]]
+function WorldBuilder.deepSpot(): Vector3
+	return Dock.deepSpot()
 end
 
 return WorldBuilder

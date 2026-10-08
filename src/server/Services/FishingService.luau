@@ -29,6 +29,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Fish = require(ReplicatedStorage.Shared.Config.Fish)
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
+local LakeConfig = require(ReplicatedStorage.Shared.Config.Lake)
 local Net = require(ReplicatedStorage.Shared.Net)
 local Rng = require(ReplicatedStorage.Shared.Util.Rng)
 local Rods = require(ReplicatedStorage.Shared.Config.Rods)
@@ -37,7 +38,6 @@ local Types = require(ReplicatedStorage.Shared.Types)
 
 local DataService = require(script.Parent.DataService)
 local RodService = require(script.Parent.RodService)
-local WorldBuilder = require(script.Parent.Parent.World.WorldBuilder)
 
 type CastPhase = "Waiting" | "Biting"
 
@@ -145,23 +145,40 @@ local function onRequestCast(player: Player)
 		return
 	end
 
-	local position = Spatial.characterPosition(player)
-	if not position then
+	local root = Spatial.characterRoot(player)
+	if not root then
 		return -- respawn w toku
 	end
 
-	local water = WorldBuilder.getWater()
-	if not water then
-		warn("[FishingService] brak strefy wody — czy WorldBuilder.build() został wywołany?")
-		return
-	end
-
-	if Spatial.distanceToPart(position, water) > GameConfig.MAX_CAST_DISTANCE then
+	-- `edgeDistance` jest dodatnie nad wodą, ujemne na lądzie. Interesuje nas
+	-- tylko to drugie: jak daleko od brzegu stoi gracz.
+	local fromShore = math.max(-LakeConfig.edgeDistance(root.Position), 0)
+	if fromShore > GameConfig.MAX_CAST_DISTANCE then
 		Net.Notify:FireClient(player, "Podejdź bliżej wody.", "Warning")
 		return
 	end
 
+	-- Ten sam punkt, w którym klient postawi spławik — łącznie z dociągnięciem
+	-- do wody. Patrz komentarz przy CAST_SHORE_MARGIN.
+	local target = LakeConfig.clampToWater(
+		Spatial.castTarget(root.CFrame, GameConfig.CAST_DISTANCE),
+		GameConfig.CAST_SHORE_MARGIN
+	)
+	local depth = LakeConfig.depthAt(target)
+	if depth <= 0 then
+		-- Nieosiągalne po dociągnięciu, chyba że ktoś zepsuje geometrię
+		-- jeziora. Wtedy lepiej zobaczyć ostrzeżenie niż łowić w trawie.
+		warn("[FishingService] punkt zarzucenia poza wodą mimo clampToWater")
+		return
+	end
+
 	local rod = Rods.find(profile.equippedRod) or Rods.expect(GameConfig.STARTING_ROD)
+
+	-- Głębokość wchodzi w to samo szczęście, co wędka, więc jej wpływ też jest
+	-- podnoszony do potęgi rzadkości. Dwa niezależne mnożniki rozdzieliłyby
+	-- progresję „kup lepszy sprzęt" od „znajdź lepsze miejsce" — a chcemy,
+	-- żeby jedno wzmacniało drugie.
+	local depthLuck = 1 + LakeConfig.depthFactor(target) * GameConfig.DEPTH_LUCK_BONUS
 
 	castCounter += 1
 	local castId = castCounter
@@ -169,13 +186,13 @@ local function onRequestCast(player: Player)
 	states[player] = {
 		castId = castId,
 		phase = "Waiting",
-		fish = pickFish(rod.luck),
+		fish = pickFish(rod.luck * depthLuck),
 		reelWindow = rod.reelWindow,
 		biteAt = 0,
 	}
 	nextCastAt[player] = now + GameConfig.CAST_COOLDOWN
 
-	Net.CastStarted:FireClient(player)
+	Net.CastStarted:FireClient(player, depth)
 
 	local biteDelay = generator:NextNumber(GameConfig.MIN_BITE_DELAY, GameConfig.MAX_BITE_DELAY)
 		* rod.biteSpeed

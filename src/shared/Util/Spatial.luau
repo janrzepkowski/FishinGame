@@ -33,12 +33,12 @@ function Spatial.distanceToPart(position: Vector3, part: BasePart): number
 end
 
 --[[
-	Pozycja postaci gracza, albo nil gdy postać nie istnieje / jest martwa.
+	Korzeń postaci gracza, albo nil gdy postać nie istnieje / jest martwa.
 
 	Zwracamy nil zamiast rzucać, bo to normalny stan: gracz może kliknąć
 	w momencie respawnu i serwer musi to spokojnie odrzucić.
 ]]
-function Spatial.characterPosition(player: Player): Vector3?
+function Spatial.characterRoot(player: Player): BasePart?
 	local character = player.Character
 	if not character then
 		return nil
@@ -54,7 +54,35 @@ function Spatial.characterPosition(player: Player): Vector3?
 		return nil
 	end
 
-	return root.Position
+	return root
+end
+
+function Spatial.characterPosition(player: Player): Vector3?
+	local root = Spatial.characterRoot(player)
+	return if root then root.Position else nil
+end
+
+--[[
+	Punkt, w który leci spławik: `distance` studów przed postacią, rzutowane
+	na płaszczyznę poziomą.
+
+	Mieszka w `shared`, bo liczą to OBIE strony — klient, żeby postawić
+	spławik, i serwer, żeby sprawdzić głębokość pod nim. Dwie implementacje
+	rozjechałyby się i gracz widziałby spławik nad głębią, dostając ryby
+	jak z płycizny.
+
+	Patrzenie prosto w górę albo w dół daje wektor zerowy, a `.Unit` zwróciłby
+	wtedy NaN — stąd awaryjny kierunek „przed siebie".
+]]
+function Spatial.castTarget(root: CFrame, distance: number): Vector3
+	local forward = root.LookVector
+	local flat = Vector3.new(forward.X, 0, forward.Z)
+
+	if flat.Magnitude < 1e-3 then
+		flat = Vector3.new(0, 0, -1)
+	end
+
+	return root.Position + flat.Unit * distance
 end
 
 return table.freeze(Spatial)

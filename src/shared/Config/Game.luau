@@ -37,8 +37,25 @@ local Game = {
 	MAX_BITE_DELAY = 5.0,
 	-- Minimalna przerwa między zarzuceniami. Chroni przed spamem Remote'ów.
 	CAST_COOLDOWN = 0.6,
-	-- Jak blisko wody trzeba stać (studs od krawędzi strefy łowienia).
+	-- Jak blisko wody trzeba stać (studs od krawędzi lustra wody).
 	MAX_CAST_DISTANCE = 28,
+	-- Jak daleko przed gracza leci spławik. Klient rysuje go dokładnie tam,
+	-- a serwer w tym samym punkcie mierzy głębokość — jedna liczba, żeby
+	-- obraz nie rozjechał się z mechaniką.
+	CAST_DISTANCE = 22,
+	-- Zapas od krawędzi lustra wody przy dociąganiu punktu zarzucenia.
+	--
+	-- Punkt wyliczony „22 study przed graczem" potrafi wypaść na lądzie:
+	-- gracz może stać 28 studów od brzegu (dozwolone) albo patrzeć wzdłuż
+	-- brzegu. Zamiast odrzucać takie zarzucenie, OBIE strony dociągają punkt
+	-- do wody tą samą funkcją (`Lake.clampToWater`). Gdyby robiła to tylko
+	-- jedna, spławik lądowałby gdzie indziej, niż serwer mierzy głębokość.
+	CAST_SHORE_MARGIN = 4,
+	-- Ile szczęścia dokłada najgłębsza woda. 0.3 oznacza mnożnik 1.3 nad
+	-- dnem na 16 m, a ponieważ szczęście wchodzi w potęgę rzadkości
+	-- (patrz FishingService.pickFish), legendarne zyskują 1.3^4 ≈ 2.9x.
+	-- To ma być powód, żeby dojść na koniec pomostu, a nie łowić z brzegu.
+	DEPTH_LUCK_BONUS = 0.3,
 	-- Podcięcie w pierwszych N okna liczy się jako perfekcyjne.
 	PERFECT_REEL_FRACTION = 0.3,
 	PERFECT_PRICE_BONUS = 1.5,

@@ -108,7 +108,9 @@ Net.RequestProfile = remote("RequestProfile")
      mały (kilka KB), więc nie komplikujemy tego diffami. ]]
 Net.ProfileUpdated = remote("ProfileUpdated")
 
---[[ () — zarzucenie przyjęte. Klient może pokazać spławik. ]]
+--[[ (depth: number) — zarzucenie przyjęte, wraz z głębokością wody pod
+     spławikiem (w studach). Klient pokazuje ją w HUD-zie, bo to jedyna
+     informacja zwrotna o tym, że dalsze wyjście na pomost ma sens. ]]
 Net.CastStarted = remote("CastStarted")
 
 --[[ (reelWindow: number) — ryba bierze, masz tyle sekund na podcięcie.

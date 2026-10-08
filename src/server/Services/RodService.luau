@@ -29,6 +29,52 @@ local ROD_ATTRIBUTE = "RodId"
 
 local RodService = {}
 
+--[[
+	Część wędki przyspawana do uchwytu.
+
+	Części w Toolu MUSZĄ być odkotwiczone i przyspawane do Handle — kotwiczone
+	zostałyby w powietrzu, gdy gracz odejdzie. `WeldConstraint` zapamiętuje
+	przesunięcie z momentu utworzenia, więc najpierw ustawiamy CFrame,
+	dopiero potem spawamy. Handle stoi w punkcie zero, więc `offset` jest
+	od razu przesunięciem lokalnym.
+]]
+local function weldedPart(
+	handle: BasePart,
+	name: string,
+	size: Vector3,
+	offset: CFrame,
+	color: Color3,
+	material: Enum.Material
+): Part
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Size = size
+	part.CFrame = offset
+	part.Color = color
+	part.Material = material
+	part.Anchored = false
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	-- Bez tego kilka części wędki zaczyna ciągnąć postać w dół.
+	part.Massless = true
+	part.TopSurface = Enum.SurfaceType.Smooth
+	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Parent = handle.Parent
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = handle
+	weld.Part1 = part
+	weld.Parent = part
+
+	return part
+end
+
+--[[
+	Wędka z części zamiast jednego patyka: rączka, kij, szczytówka,
+	kołowrotek i przelotki. Kij leży wzdłuż lokalnego -Z, a na samym czubku
+	siedzi Attachment „Tip", od którego klient rysuje żyłkę do spławika.
+]]
 local function buildRod(definition: RodDefinition): Tool
 	local tool = Instance.new("Tool")
 	tool.Name = definition.displayName
@@ -36,27 +82,81 @@ local function buildRod(definition: RodDefinition): Tool
 	tool.CanBeDropped = false
 	tool.ToolTip = `Szczęście x{definition.luck} · okno {Format.seconds(definition.reelWindow)}`
 	tool:SetAttribute(ROD_ATTRIBUTE, definition.id)
-	-- Chwyt bliżej końca kija, żeby wędka wyglądała jak trzymana, a nie
-	-- wyważona w połowie.
-	tool.GripPos = Vector3.new(0, 0, 1.8)
+	-- Dłoń trzyma przy końcu rączki, a nie w połowie kija.
+	tool.GripPos = Vector3.new(0, 0, 0.25)
+	tool.GripForward = Vector3.new(0, 0, 1)
+	tool.GripUp = Vector3.new(0, 1, 0)
 
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
-	handle.Size = Vector3.new(0.22, 0.22, 4.6)
-	handle.Color = definition.color
+	handle.Size = Vector3.new(0.34, 0.34, 1.3)
+	handle.CFrame = CFrame.new()
+	handle.Color = Color3.fromRGB(78, 56, 38)
 	handle.Material = Enum.Material.Wood
-	handle.Massless = true
+	handle.Anchored = false
 	handle.CanCollide = false
+	handle.Massless = true
 	handle.TopSurface = Enum.SurfaceType.Smooth
 	handle.BottomSurface = Enum.SurfaceType.Smooth
 	handle.Parent = tool
 
-	-- Attachment zamiast drugiej części: nie wymaga spawania, nie dodaje
-	-- fizyki, a klient ma z czego poprowadzić linkę do spławika.
-	local tip = Instance.new("Attachment")
-	tip.Name = "Tip"
-	tip.Position = Vector3.new(0, 0, -2.3)
-	tip.Parent = handle
+	weldedPart(
+		handle,
+		"Shaft",
+		Vector3.new(0.17, 0.17, 4.2),
+		CFrame.new(0, 0, -2.75),
+		definition.color,
+		Enum.Material.Wood
+	)
+
+	local tip = weldedPart(
+		handle,
+		"TipSection",
+		Vector3.new(0.09, 0.09, 1.7),
+		CFrame.new(0, 0, -5.7),
+		definition.color,
+		Enum.Material.Wood
+	)
+
+	-- Kołowrotek: walec leży wzdłuż osi X, więc domyślna orientacja od razu
+	-- daje bęben ustawiony w poprzek kija. Nic nie trzeba obracać.
+	local reel = weldedPart(
+		handle,
+		"Reel",
+		Vector3.new(0.5, 0.78, 0.78),
+		CFrame.new(0, -0.36, -0.95),
+		Color3.fromRGB(196, 200, 208),
+		Enum.Material.Metal
+	)
+	reel.Shape = Enum.PartType.Cylinder
+
+	weldedPart(
+		handle,
+		"ReelKnob",
+		Vector3.new(0.14, 0.14, 0.34),
+		CFrame.new(0.3, -0.36, -0.95),
+		Color3.fromRGB(44, 48, 56),
+		Enum.Material.SmoothPlastic
+	)
+
+	-- Przelotki — drobiazg, ale to one sprawiają, że kij czyta się jako
+	-- wędka, a nie jako kij.
+	for index = 1, 3 do
+		weldedPart(
+			handle,
+			`Guide{index}`,
+			Vector3.new(0.22, 0.22, 0.07),
+			CFrame.new(0, -0.09, -1.5 - index * 1.45),
+			Color3.fromRGB(212, 216, 222),
+			Enum.Material.Metal
+		)
+	end
+
+	local tipAttachment = Instance.new("Attachment")
+	tipAttachment.Name = "Tip"
+	-- Lokalnie względem szczytówki: jej połowa długości w stronę czubka.
+	tipAttachment.Position = Vector3.new(0, 0, -0.85)
+	tipAttachment.Parent = tip
 
 	return tool
 end

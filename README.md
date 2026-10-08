@@ -50,14 +50,21 @@ Szczegóły, pułapki i co zrobić, gdy sync nie działa: **[docs/ROBLOX_STUDIO.
 
 ## Sterowanie
 
-| Klawisz | Akcja |
-|---|---|
-| LPM (z wędką w ręce) | zarzuć, a przy braniu — podetnij |
-| `B` | ekwipunek |
-| `E` przy stoisku | sprzedaż połowu / sklep z wędkami |
+| Klawiatura | Dotyk | Akcja |
+|---|---|---|
+| LPM | duży okrągły przycisk | zarzuć, a przy braniu — podetnij |
+| `B` | przycisk ▦ | ekwipunek |
+| `E` przy stoisku | `E` przy stoisku | sprzedaż połowu / sklep z wędkami |
+
+Wędka wyjmuje się sama — nie trzeba jej szukać na pasku.
 
 Podcięcie w pierwszych 30% okna daje bonus x1,5 do ceny.
 Podcięcie przed braniem kosztuje zarzucenie i 1,2 s blokady.
+
+**Idź na koniec pomostu.** Jezioro ma schodkowe dno: 8 m przy brzegu,
+potem 16, 24 i 32 m w środku. Głębokość realnie podbija szansę na rzadkie
+ryby, a HUD pokazuje ją pod spławikiem przy każdym zarzuceniu. Nigdzie nie
+da się brodzić — od pierwszego kroku w wodę się pływa.
 
 ## Codzienna praca
 
