@@ -4,7 +4,12 @@
 
 	Dodanie gatunku = jeden wpis w `DEFINITIONS`. Nic poza tym plikiem nie
 	trzeba ruszać: UI bierze kolor z rzadkości, ekonomia z `pricePerKg`,
-	a losowanie z `spawnWeight`.
+	losowanie ze `spawnWeight`, a walka z `fight`.
+
+	PROFILE WALKI są dobierane pod CHARAKTER gatunku, nie pod jego wartość.
+	Szczupak szarpie gwałtownie i krótko, sum męczy długo bez gwałtownych
+	zrywów, a Złota Rybka jest malutka i wściekła. Gdyby trudność szła
+	wprost za rzadkością, każda walka byłaby tym samym, tylko dłuższym.
 ]]
 
 local Types = require(script.Parent.Parent.Types)
@@ -38,11 +43,25 @@ local RARITY_LABEL: { [Rarity]: string } = table.freeze({
 	Legendary = "Legendarna",
 })
 
+-- Kolejność rzadkości od pospolitej do legendarnej — do sortowania
+-- bestiariusza i generowania zadań.
+-- Rzutowanie na pierwszym elemencie nadaje typ całej tablicy. Bez niego
+-- literał dostaje `{string}`, a to nie jest podtyp `{Rarity}` — tablice
+-- w Luau są niezmiennicze.
+local RARITY_ORDER: { Rarity } = table.freeze({
+	"Common" :: Rarity,
+	"Uncommon",
+	"Rare",
+	"Epic",
+	"Legendary",
+})
+
 local Fish = {}
 
 Fish.RARITY_TIER = RARITY_TIER
 Fish.RARITY_COLOR = RARITY_COLOR
 Fish.RARITY_LABEL = RARITY_LABEL
+Fish.RARITY_ORDER = RARITY_ORDER
 
 local DEFINITIONS: { FishDefinition } = {
 	{
@@ -54,6 +73,9 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 0.1,
 		maxMass = 0.6,
 		color = Color3.fromRGB(186, 196, 204),
+		-- Pierwsza ryba, jaką zobaczy nowy gracz. Walka ma nauczyć rytmu,
+		-- a nie ukarać — słaba i szybka.
+		fight = { strength = 0.55, stamina = 0.5 },
 	},
 	{
 		id = "perch",
@@ -64,6 +86,7 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 0.2,
 		maxMass = 1.4,
 		color = Color3.fromRGB(104, 142, 72),
+		fight = { strength = 0.7, stamina = 0.6 },
 	},
 	{
 		id = "bream",
@@ -74,6 +97,8 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 0.5,
 		maxMass = 3.2,
 		color = Color3.fromRGB(172, 158, 118),
+		-- Ospały, ale ciężki: nie szarpie, tylko wisi.
+		fight = { strength = 0.6, stamina = 0.85 },
 	},
 	{
 		id = "tench",
@@ -84,6 +109,7 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 0.8,
 		maxMass = 4.0,
 		color = Color3.fromRGB(96, 110, 58),
+		fight = { strength = 0.8, stamina = 0.95 },
 	},
 	{
 		id = "carp",
@@ -94,6 +120,8 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 1.5,
 		maxMass = 14.0,
 		color = Color3.fromRGB(176, 128, 72),
+		-- Klasyczny długi hol.
+		fight = { strength = 0.95, stamina = 1.3 },
 	},
 	{
 		id = "pike",
@@ -104,6 +132,9 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 1.0,
 		maxMass = 11.0,
 		color = Color3.fromRGB(88, 124, 96),
+		-- Drapieżnik: gwałtowny i krótki. Pierwsza ryba, która realnie
+		-- zrywa żyłkę startowej wędki.
+		fight = { strength = 1.35, stamina = 0.85 },
 	},
 	{
 		id = "zander",
@@ -114,6 +145,7 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 1.2,
 		maxMass = 9.5,
 		color = Color3.fromRGB(122, 136, 150),
+		fight = { strength = 1.15, stamina = 1.05 },
 	},
 	{
 		id = "catfish",
@@ -124,6 +156,8 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 4.0,
 		maxMass = 48.0,
 		color = Color3.fromRGB(76, 68, 60),
+		-- Maraton: nie szarpie mocno, ale nie chce odpuścić.
+		fight = { strength = 1.05, stamina = 1.75 },
 	},
 	{
 		id = "salmon",
@@ -134,6 +168,7 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 3.0,
 		maxMass = 18.0,
 		color = Color3.fromRGB(232, 132, 110),
+		fight = { strength = 1.5, stamina = 1.2 },
 	},
 	{
 		id = "sturgeon",
@@ -144,6 +179,7 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 6.0,
 		maxMass = 62.0,
 		color = Color3.fromRGB(94, 104, 112),
+		fight = { strength = 1.25, stamina = 1.85 },
 	},
 	{
 		id = "albino_catfish",
@@ -154,6 +190,7 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 20.0,
 		maxMass = 85.0,
 		color = Color3.fromRGB(242, 236, 228),
+		fight = { strength = 1.4, stamina = 2.1 },
 	},
 	{
 		id = "golden_fish",
@@ -164,12 +201,16 @@ local DEFINITIONS: { FishDefinition } = {
 		minMass = 0.2,
 		maxMass = 1.1,
 		color = Color3.fromRGB(255, 198, 64),
+		-- Dwadzieścia deko czystej furii. Walka trwa chwilę, ale jedna
+		-- sekunda nieuwagi przy szarpnięciu zrywa żyłkę.
+		fight = { strength = 1.9, stamina = 0.55 },
 	},
 }
 
 local byId: { [string]: FishDefinition } = {}
 for _, definition in DEFINITIONS do
 	assert(byId[definition.id] == nil, `zduplikowane id ryby: {definition.id}`)
+	table.freeze(definition.fight)
 	byId[definition.id] = table.freeze(definition)
 end
 

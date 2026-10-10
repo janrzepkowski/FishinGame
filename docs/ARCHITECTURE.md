@@ -72,6 +72,74 @@ Tool.Activated
   nazwa ryby, masa, cena
 ```
 
+## Walka z rybą
+
+Po udanym zacięciu zaczyna się hol — i to jest właściwa gra. Wcześniej cała
+pętla miała **jedno kliknięcie na osiem sekund**, a wędki i głębokość
+zmieniały wyłącznie prawdopodobieństwa. Sufit umiejętności wynosił „kliknij
+w okno 1,5 s" i po pięciu rzutach nie było już czego opanowywać.
+
+### Model
+
+Dwa stany, 0..1, idące w przeciwne strony:
+
+```
+holuje + spokój    postęp szybko,      napięcie wolno       (idealnie)
+holuje + szarpie   postęp prawie zero, napięcie szybko      (zerwiesz)
+puścił + spokój    postęp powoli -,    napięcie -           (marnujesz czas)
+puścił + szarpie   postęp powoli -,    napięcie -           (prawidłowo)
+```
+
+`postęp ≥ 1` → złowiona. `napięcie ≥ 1` → zerwana żyłka.
+
+```
+tempo postępu  = FIGHT_PROGRESS_GAIN / stamina_ryby
+tempo napięcia = FIGHT_TENSION_GAIN * strength_ryby / lineStrength_wędki
+```
+
+Podczas szarpnięcia napięcie ×3, a postęp ×0,35 — czyli trzymanie przestaje
+się opłacać i jednocześnie zaczyna być groźne. To jedyny moment decyzyjny
+i cała gra kręci się wokół niego.
+
+### Dlaczego dwie liczby na gatunek, a nie jedna „trudność"
+
+`strength` i `stamina` to różne odczucia. Silna ryba grozi zerwaniem, wytrzymała
+po prostu męczy. Jedna liczba zrobiłaby z każdej walki to samo, tylko dłuższe.
+Stąd sum (wytrzymały, spokojny) gra inaczej niż szczupak (gwałtowny, krótki).
+
+### Symulacja jest na serwerze
+
+Klient wysyła **wyłącznie boolean** — „trzymam" / „puściłem" — i to tylko przy
+zmianie. Nie ma czego podrobić: wysłanie `true` w kółko to dokładnie to samo,
+co trzymanie przycisku, czyli najszybsza droga do zerwania żyłki.
+
+Serwer liczy w stałym kroku 20 Hz, jedną wspólną pętlą `Heartbeat` dla
+wszystkich walczących graczy. Akumulator odkleja symulację od zmiennego czasu
+klatki — przy spadku FPS serwera walka zwalnia, zamiast przeskakiwać, co przy
+progu zerwania żyłki miałoby znaczenie.
+
+Stan leci do klienta przez **`UnreliableRemoteEvent`**: zgubiona klatka nic nie
+znaczy, bo za 50 ms przyjdzie następna. Wynik walki idzie osobno, zwykłym
+niezawodnym Remote'em — zgubione „złowiłeś jesiotra" to zepsuta gra.
+
+Klient interpoluje paski w stronę ostatniego znanego stanu. **Nie symuluje
+walki lokalnie** dla gładkości: własna symulacja rozjechałaby się z serwerem
+i pokazywała zerwaną żyłkę tam, gdzie serwer widzi złowioną rybę.
+
+### Balans jest testowany, nie wyczuwany
+
+`shared/Util/Fight.luau` to czysta matematyka bez typów Robloxa, więc
+`tests/run.luau` sprawdza granice, których w Studio nie da się zmierzyć:
+
+- **czas do zerwania przy szarpnięciu > 0,45 s** — poniżej ludzkiego czasu
+  reakcji walka jest nie do wygrania i żadna umiejętność tego nie zmieni
+- **najdłuższa walka < 10 s czystego holu** — powyżej gracz się nudzi
+- **mocniejsza żyłka realnie wydłuża czas do zerwania** — inaczej zakup
+  wędki niczego nie zmienia
+
+Zmiana strojenia w `GameConfig` ma **złamać** te testy i zmusić do świadomego
+przeliczenia. To jest ich jedyny cel.
+
 ### Dlaczego gatunek jest losowany przy zarzuceniu, a nie przy podcięciu
 
 Bo wynik musi być niezależny od tego, jak gracz podciął. Gdyby losowanie
@@ -348,12 +416,45 @@ trafialności palcem.
 `Theme.onLayout` woła callback od razu i przy każdej zmianie rozmiaru okna.
 Klasy urządzeń: `Phone` (<700 px), `Tablet` (<1150 px), `Desktop`.
 
+**Cały trwały interfejs trzyma się LEWEJ KRAWĘDZI.** Środek i prawa strona
+ekranu należą do rozgrywki — tam jest woda, spławik i ryba. Pasek łowienia
+stał kiedyś na dole pośrodku i zasłaniał dokładnie to, na co gracz patrzy
+w kluczowym momencie.
+
+Lewa krawędź, od góry do dołu:
+
+```
+HUD_BAND      monety, torba, wędka, głębokość
+...
+komunikaty    rosną w górę, najświeższy najniżej
+CAST_BAND     pasek zarzucania i walki
+BOTTOM_SAFE   drążek ruchu Robloxa (tylko telefon)
+```
+
+Wymiary tego stosu siedzą w `Theme` (`HUD_BAND`, `CAST_BAND`, `BOTTOM_SAFE`)
+i są liczone przez `Theme.castBottom` / `Theme.toastBottom`. **Żaden panel nie
+trzyma własnej liczby.** Gdyby trzymał, pierwsza zmiana rozmiaru paska walki
+nasunęłaby na niego komunikaty i nikt nie wiedziałby, który plik poprawić.
+
 | Ekran | Desktop / tablet | Telefon |
 |---|---|---|
 | HUD | karta 230 px, lewy górny róg | węższa, bliżej krawędzi |
-| Pasek łowienia | 120 px nad dołem | 190 px — nad sterowaniem dotykowym |
+| Komunikaty | lewa krawędź, nad paskiem łowienia | to samo, podniesione nad drążek |
+| Pasek łowienia | **lewy dolny róg** | to samo, nad drążkiem ruchu |
+| Slot wędki | dół, wyśrodkowany | dół, wyśrodkowany |
 | Ekwipunek | kolumna z prawej | arkusz przyklejony do dołu |
-| Sklep | okno 460 px | prawie pełny ekran |
+| Sklep / dziennik | okno wyśrodkowane | prawie pełny ekran |
+
+Mapa zajętości ekranu (Roblox nie dokumentuje pozycji CoreGui, trzeba ją
+znać z praktyki):
+
+```
+góra-lewo    czat Robloxa           + nasz HUD
+góra-prawo   lista graczy
+dół-środek   pasek narzędzi         + nasz slot wędki
+dół-prawo    skok (mobile)          + nasze przyciski dotykowe
+dół-lewo     drążek ruchu (mobile)  -> reszta: komunikaty + pasek łowienia
+```
 
 `ScreenGui.ScreenInsets = CoreUISafeInsets` odsuwa interfejs od górnego paska
 Robloxa i od wycięć w ekranach telefonów.
@@ -397,11 +498,91 @@ Wędka turniejowa (`luck = 1.42`) daje legendarnym wagę ×1,42⁴ ≈ 4,07, a p
 ×1 — czyli lepsza wędka nie „daje więcej wszystkiego", a realnie przesuwa rozkład
 w stronę rzadkości.
 
+## Progresja i retencja
+
+### Bestiariusz
+
+`profile.records` (fishId → największa masa) był zapisywany od początku
+i **nigdy nie pokazywany**. Dane były, brakowało okna. Teraz jest w dzienniku.
+
+Niezłowione gatunki pokazujemy po nazwie, nie jako „???" — lista celów działa
+tylko wtedy, gdy wiadomo, co się na niej znajduje.
+
+### Ranking
+
+`OrderedDataStore`, bo zwykły DataStore nie umie sortować: żeby zrobić z niego
+ranking, trzeba by trzymać listę wszystkich graczy i czytać tysiąc kluczy.
+
+Rankingujemy **`totalEarned`** (suma zarobiona przez całe życie konta), nie
+`coins`. Gdyby liczyły się monety w kieszeni, zakup wędki cofałby gracza
+w rankingu — czyli gra karałaby za granie w nią zgodnie z zamysłem.
+
+### Zapis: cyklicznie plus przy wyjściu
+
+Sam zapis na wyjściu wygląda poprawnie, dopóki serwer kończy się normalnie.
+W praktyce serwery padają, a Roblox nie gwarantuje, że `PlayerRemoving` zdąży
+dokończyć zapis — gracz traciłby wtedy cały dorobek sesji w rankingu.
+
+Drugą skrajnością byłby zapis po każdej sprzedaży: przy 50 graczach na serwerze
+to ~100 zapisów na minutę na dane, które i tak odświeżamy raz na minutę.
+
+Stoimy pośrodku: cykl co 2 minuty, z pominięciem graczy, których wynik się nie
+zmienił. W praktyce kilka zapisów na minutę na serwer.
+
+### `UpdateAsync` z `max`, nie `SetAsync`
+
+Przy jednym serwerze różnicy nie widać. Przy kilkudziesięciu wygląda to tak:
+gracz gra, wychodzi, wchodzi na inny serwer i gra dalej. Jeśli spóźniony zapis
+ze starego serwera dotrze **po** zapisie z nowego, `SetAsync` cofnąłby mu wynik.
+
+`totalEarned` rośnie monotonicznie, więc maksimum jest zawsze poprawne,
+a zapis, który przyszedł nie w kolejności, po prostu nic nie robi.
+
+Ranking jest w dzienniku (`J`). Była też fizyczna tablica na placu — została
+usunięta, bo zagracała drogę między spawnem a pomostem, czyli jedyną ścieżkę,
+którą gracz przechodzi w pierwszych dziesięciu sekundach.
+
+### Analityka
+
+`AnalyticsService` owinięty w `xpcall`, bo **rzuca błędem w Studio bez dostępu
+do API**. Bez tego telemetria wywalałaby handler przy każdym złowieniu —
+czyli psułaby grę zamiast ją mierzyć.
+
+Logujemy zdarzenia **kończące etap pętli**, nie każde zarzucenie: lejek
+`cast → hooked → landed → sold` odpowiada na pytanie „gdzie gracze odpadają".
+Jeśli walka zabija 60% sesji, widać to w danych, a nie w domysłach.
+
+## Interfejs: podglądy 3D zamiast obrazków
+
+Wędka w sklepie i na pasku to **`ViewportFrame` z tym samym modelem**, który
+gracz trzyma w ręce — nie obrazek.
+
+Obrazek trzeba wyrenderować, wgrać na Roblox i trzymać jego ID w kodzie. Przy
+czterech wędkach to cztery assety, które rozjadą się z modelem przy pierwszej
+zmianie kształtu. Geometria siedzi raz, w `shared/Util/RodModel`, jako **dane**;
+`RodService` skleja z nich Tool, a UI renderuje podgląd. Nie da się ich
+rozjechać, bo to jeden opis.
+
+Z tego samego powodu wbudowany pasek Robloxa jest wyłączony: rysuje slot jako
+`Tool.TextureId`, więc bez obrazka pokazuje samą nazwę.
+
+### Chwyt narzędzia
+
+`Tool.GripForward` jest z definicji **LookVectorem** chwytu, a LookVector
+w Robloxie to **−Z**. Ustawienie go na `(0, 0, 1)` obraca wędkę o 180°
+i wychodzi zza pleców gracza — dokładnie ten błąd tu był.
+
+Dlatego nie ustawiamy `GripForward`/`GripUp`/`GripRight` osobno. Te pola są
+wyliczane z macierzy `Grip` i ustawiane pojedynczo potrafią zostawić ją
+niespójną. Podajemy jeden kompletny `CFrame`.
+
 ## Gdzie co dopisywać
 
 | Chcesz dodać | Idź do |
 |---|---|
 | nowy gatunek ryby | `shared/Config/Fish.luau` — i nic poza tym |
+| zmienić balans walki | `shared/Config/Game.luau` (sekcja walki) — i przelicz testy |
+| zmienić kształt wędki | `shared/Util/RodModel.luau` — model, sklep i pasek same się zaktualizują |
 | nowy tier wędki | `shared/Config/Rods.luau` |
 | zmienić balans | `shared/Config/Game.luau` |
 | zmienić kształt lub głębokość jeziora | `shared/Config/Lake.luau` — teren przebuduje się sam |

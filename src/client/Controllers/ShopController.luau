@@ -17,9 +17,11 @@ local GameConfig = require(Shared.Config.Game)
 local Net = require(Shared.Net)
 
 local InventoryPanel = require(script.Parent.Parent.UI.InventoryPanel)
+local JournalPanel = require(script.Parent.Parent.UI.JournalPanel)
 local ShopPanel = require(script.Parent.Parent.UI.ShopPanel)
 
 local INVENTORY_KEY = Enum.KeyCode.B
+local JOURNAL_KEY = Enum.KeyCode.J
 
 local ShopController = {}
 
@@ -48,6 +50,14 @@ function ShopController.start()
 
 		if input.KeyCode == INVENTORY_KEY then
 			InventoryPanel.toggle()
+		elseif input.KeyCode == JOURNAL_KEY then
+			JournalPanel.toggle()
+		elseif input.KeyCode == Enum.KeyCode.Escape then
+			-- Escape zamyka wszystko, co otwarte. Gracz nie powinien
+			-- pamiętać, którym klawiszem co otworzył.
+			ShopPanel.setVisible(false)
+			JournalPanel.setVisible(false)
+			InventoryPanel.setVisible(false)
 		end
 	end)
 end

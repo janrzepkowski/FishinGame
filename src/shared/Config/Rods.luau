@@ -2,9 +2,16 @@
 --[[
 	Rods — drabinka wędek.
 
-	Każdy kolejny tier poprawia trzy rzeczy naraz: szansę na rzadkie ryby
-	(`luck`), tempo brań (`biteSpeed`) i okno na podcięcie (`reelWindow`).
-	To daje wyraźnie wyczuwalny skok po zakupie — jeden parametr by nie wystarczył.
+	Każdy kolejny tier poprawia cztery rzeczy naraz: szansę na rzadkie ryby
+	(`luck`), tempo brań (`biteSpeed`), okno na podcięcie (`reelWindow`)
+	i wytrzymałość żyłki (`lineStrength`). To daje wyraźnie wyczuwalny skok
+	po zakupie — jeden parametr by nie wystarczył.
+
+	`lineStrength` jest tu najważniejszy dla ODCZUCIA: pozostałe trzy zmieniają
+	statystyki, ta jedna zmienia to, co gracz robi rękami. Na startowej wędce
+	szczupak zrywa żyłkę, jeśli nie puścisz przy szarpnięciu; na turniejowej
+	można go przeholować siłą. To jest realna nagroda za zakup, a nie
+	kolejny procent w tabelce.
 ]]
 
 local Types = require(script.Parent.Parent.Types)
@@ -22,6 +29,7 @@ local DEFINITIONS: { RodDefinition } = {
 		luck = 1.0,
 		biteSpeed = 1.0,
 		reelWindow = 1.5,
+		lineStrength = 1.0,
 		color = Color3.fromRGB(141, 102, 60),
 	},
 	{
@@ -32,6 +40,7 @@ local DEFINITIONS: { RodDefinition } = {
 		luck = 1.12,
 		biteSpeed = 0.85,
 		reelWindow = 1.7,
+		lineStrength = 1.2,
 		color = Color3.fromRGB(72, 86, 102),
 	},
 	{
@@ -42,6 +51,7 @@ local DEFINITIONS: { RodDefinition } = {
 		luck = 1.25,
 		biteSpeed = 0.7,
 		reelWindow = 1.9,
+		lineStrength = 1.45,
 		color = Color3.fromRGB(38, 40, 46),
 	},
 	{
@@ -52,6 +62,7 @@ local DEFINITIONS: { RodDefinition } = {
 		luck = 1.42,
 		biteSpeed = 0.55,
 		reelWindow = 2.2,
+		lineStrength = 1.8,
 		color = Color3.fromRGB(196, 158, 72),
 	},
 }

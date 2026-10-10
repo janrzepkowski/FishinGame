@@ -26,6 +26,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared.Net)
@@ -34,17 +35,19 @@ local Types = require(Shared.Types)
 local Bobber = require(script.Parent.Parent.Effects.Bobber)
 local CastAnimation = require(script.Parent.Parent.Effects.CastAnimation)
 local CastMeter = require(script.Parent.Parent.UI.CastMeter)
+local Hotbar = require(script.Parent.Parent.UI.Hotbar)
 local Hud = require(script.Parent.Parent.UI.Hud)
 
 local ROD_ATTRIBUTE = "RodId"
 
 local FishingController = {}
 
-export type Phase = "Idle" | "Waiting" | "Biting"
+export type Phase = "Idle" | "Waiting" | "Biting" | "Fighting"
 
 local player = Players.LocalPlayer
 local phase: Phase = "Idle"
 local phaseListeners: { (Phase) -> () } = {}
+local reeling = false
 
 local function setPhase(next: Phase)
 	phase = next
@@ -95,10 +98,68 @@ local function ensureEquipped(): boolean
 end
 
 --[[
+	Chowa wędkę do plecaka albo ją wyjmuje — klawisz `1` i kliknięcie
+	w slot na pasku.
+
+	Wyłączyliśmy wbudowany plecak Robloxa (patrz `UI/Hotbar`), a razem z nim
+	zniknął standardowy skrót cyframi. Gracze odruchowo go szukają, więc
+	trzeba go było odtworzyć — a przy okazji zrobić z niego PRZEŁĄCZNIK,
+	nie samo wyjmowanie: bez tego nie dało się odłożyć wędki wcale.
+
+	Działa tylko poza zarzuceniem. Schowanie wędki w trakcie holu zabrałoby
+	Attachment, od którego klient rysuje żyłkę, i spławik zawisłby na niczym.
+]]
+function FishingController.toggleRod()
+	if phase ~= "Idle" then
+		return
+	end
+
+	local character = player.Character
+	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+	if not humanoid then
+		return
+	end
+
+	if heldRod() then
+		humanoid:UnequipTools()
+	else
+		ensureEquipped()
+	end
+end
+
+--[[
+	Ustawia intencję holowania. Wysyła tylko przy ZMIANIE — serwer i tak
+	odczytuje flagę raz na tick, więc strumień identycznych wiadomości
+	byłby czystym marnotrawstwem pasma.
+]]
+function FishingController.setReeling(value: boolean)
+	if phase ~= "Fighting" then
+		-- Poza walką pamiętamy `false`, żeby kolejna walka nie zaczęła się
+		-- z wciśniętym przyciskiem po poprzedniej.
+		reeling = false
+		return
+	end
+
+	if value == reeling then
+		return
+	end
+
+	reeling = value
+	Net.RequestReeling:FireServer(value)
+end
+
+--[[
 	Jedyne wejście akcji gracza — spina `Tool.Activated` z desktopa
 	i przycisk dotykowy. Dzięki temu obie ścieżki nie mogą się rozjechać.
+
+	W czasie walki kliknięcie nie wysyła nic: tam liczy się TRZYMANIE,
+	obsługiwane przez `setReeling`.
 ]]
 function FishingController.primaryAction()
+	if phase == "Fighting" then
+		return
+	end
+
 	if not ensureEquipped() then
 		return
 	end
@@ -127,10 +188,22 @@ local function bindTool(instance: Instance)
 end
 
 local function watchCharacter(character: Model)
+	local function syncEquipped()
+		Hotbar.setEquipped(heldRod() ~= nil)
+	end
+
 	for _, child in character:GetChildren() do
 		bindTool(child)
 	end
-	character.ChildAdded:Connect(bindTool)
+
+	character.ChildAdded:Connect(function(child)
+		bindTool(child)
+		syncEquipped()
+	end)
+	-- Tool wyjęty z postaci wraca do plecaka jako ChildRemoved — bez tego
+	-- slot zostawałby podświetlony mimo odłożonej wędki.
+	character.ChildRemoved:Connect(syncEquipped)
+	syncEquipped()
 
 	-- Plecak powstaje razem z postacią, ale nie zawsze przed tym momentem.
 	task.spawn(function()
@@ -163,6 +236,53 @@ function FishingController.start()
 	end
 	player.CharacterAdded:Connect(watchCharacter)
 
+	--[[
+		Hol na desktopie: TRZYMANIE lewego przycisku.
+
+		`Tool.Activated` odpala się tylko przy kliknięciu i nie mówi nic
+		o puszczeniu, więc samo nie wystarczy. Czytamy mysz wprost, ale
+		REAGUJEMY WYŁĄCZNIE w fazie walki — poza nią obsługę przejmuje
+		`Tool.Activated`, który z definicji nie łapie kliknięć w UI.
+
+		`gameProcessed` odsiewa kliknięcia zużyte przez interfejs, żeby
+		zamknięcie panelu w trakcie walki nie liczyło się jako holowanie.
+	]]
+	UserInputService.InputBegan:Connect(function(input, gameProcessed)
+		-- `gameProcessed` odsiewa wejście zużyte przez UI i czat. Bez tego
+		-- wpisanie „1" na czacie chowałoby wędkę.
+		if gameProcessed then
+			return
+		end
+
+		if input.KeyCode == Enum.KeyCode.One then
+			FishingController.toggleRod()
+			return
+		end
+
+		if phase ~= "Fighting" then
+			return
+		end
+
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			FishingController.setReeling(true)
+		end
+	end)
+
+	UserInputService.InputEnded:Connect(function(input)
+		-- Przy PUSZCZENIU nie sprawdzamy `gameProcessed`: jeśli gracz zacznie
+		-- holować, a potem najedzie kursorem na panel, zdarzenie zostałoby
+		-- odsiane i żyłka zerwałaby się mimo puszczenia przycisku.
+		if
+			input.UserInputType == Enum.UserInputType.MouseButton1
+			or input.UserInputType == Enum.UserInputType.Touch
+		then
+			FishingController.setReeling(false)
+		end
+	end)
+
 	player.CharacterRemoving:Connect(function()
 		-- Śmierć w trakcie łowienia: serwer też zeruje stan, ale niezależnie.
 		-- Bez lokalnego sprzątania gracz wstaje z paskiem podcięcia na ekranie.
@@ -189,8 +309,21 @@ function FishingController.start()
 		Bobber.dip()
 	end)
 
+	Net.FightStarted.OnClientEvent:Connect(function()
+		setPhase("Fighting")
+		reeling = false
+		CastMeter.showFight()
+		Bobber.beginFight()
+	end)
+
+	Net.FightUpdate.OnClientEvent:Connect(function(state: Types.FightState)
+		CastMeter.updateFight(state)
+		Bobber.setTension(state.tension, state.surging)
+	end)
+
 	Net.CastResolved.OnClientEvent:Connect(function(result: Types.CastResult)
 		setPhase("Idle")
+		reeling = false
 		CastMeter.showResult(result)
 		CastAnimation.reset()
 

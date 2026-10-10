@@ -11,7 +11,7 @@
 	                   nie obejmie ich wszystkich.
 	  3. *.mount     — ekrany budują instancje, jeszcze bez danych.
 	  4. subskrypcje — ProfileCache rozdaje snapshoty do ekranów.
-	  5. kontrolery  — wejście gracza i efekty.
+	  5. kontrolery  — podpinają wejście gracza i efekty.
 	  6. RequestProfile — prosimy serwer o dane, gdy już jest czym je wypełnić.
 
 	Punkt 6 musi być OSTATNI. Serwer robi pierwszy `push` w `PlayerAdded`,
@@ -32,8 +32,10 @@ local ShopController = require(script.Controllers.ShopController)
 local Underwater = require(script.Effects.Underwater)
 
 local CastMeter = require(script.UI.CastMeter)
+local Hotbar = require(script.UI.Hotbar)
 local Hud = require(script.UI.Hud)
 local InventoryPanel = require(script.UI.InventoryPanel)
+local JournalPanel = require(script.UI.JournalPanel)
 local MobileControls = require(script.UI.MobileControls)
 local ShopPanel = require(script.UI.ShopPanel)
 local Theme = require(script.UI.Theme)
@@ -56,29 +58,53 @@ local root = Theme.mountRoot(screen)
 
 Hud.mount(root)
 CastMeter.mount(root)
+Hotbar.mount(root)
 InventoryPanel.mount(root)
 ShopPanel.mount(root)
+JournalPanel.mount(root)
 Toast.mount(root)
 MobileControls.mount(root)
 
 ProfileCache.onChanged(function(profile: Types.Profile)
 	Hud.update(profile)
+	Hotbar.update(profile)
 	InventoryPanel.update(profile)
 	ShopPanel.update(profile)
+	JournalPanel.update(profile)
 end)
 
 Net.Notify.OnClientEvent:Connect(function(message: string, kind: string?)
 	Toast.show(message, kind)
 end)
 
--- Przycisk dotykowy i `Tool.Activated` wołają dokładnie tę samą funkcję,
+Net.LeaderboardUpdated.OnClientEvent:Connect(function(entries: { Types.LeaderboardEntry })
+	JournalPanel.setLeaderboard(entries)
+end)
+
+-- Przycisk dotykowy i `Tool.Activated` wołają dokładnie te same funkcje,
 -- żeby obie ścieżki wejścia nie mogły się rozjechać.
 MobileControls.setPrimaryAction(FishingController.primaryAction)
+MobileControls.setReelingAction(FishingController.setReeling)
+
+-- Slot na pasku i klawisz `1` wołają tę samą funkcję.
+Hotbar.setAction(FishingController.toggleRod)
+
 MobileControls.setInventoryAction(function()
 	InventoryPanel.toggle()
 	MobileControls.setInventoryHighlighted(InventoryPanel.isVisible())
 end)
+
+MobileControls.setJournalAction(function()
+	JournalPanel.toggle()
+	MobileControls.setJournalHighlighted(JournalPanel.isVisible())
+end)
+
 FishingController.onPhaseChanged(MobileControls.setPhase)
+
+-- Szarpnięcie ryby musi być widoczne także na kciuku, nie tylko na pasku.
+Net.FightUpdate.OnClientEvent:Connect(function(state: Types.FightState)
+	MobileControls.setSurging(state.surging)
+end)
 
 ProfileCache.start()
 Underwater.start()

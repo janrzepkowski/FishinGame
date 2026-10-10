@@ -21,6 +21,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Format = require(Shared.Util.Format)
 local Net = require(Shared.Net)
+local RodModel = require(Shared.Util.RodModel)
 local Rods = require(Shared.Config.Rods)
 local Types = require(Shared.Types)
 
@@ -76,6 +77,15 @@ local STATS: { StatSpec } = {
 			return rod.reelWindow
 		end,
 	},
+	{
+		-- Wytrzymałość żyłki jest tu ostatnia, ale w praktyce najważniejsza:
+		-- to ona decyduje, czy da się wyholować silną rybę, czy zrywa się linka.
+		label = "Żyłka",
+		color = Theme.COLOR.danger,
+		value = function(rod)
+			return rod.lineStrength
+		end,
+	},
 }
 
 local function normalizer(spec: StatSpec): (Types.RodDefinition) -> number
@@ -107,12 +117,20 @@ end
 
 -- ---------------------------------------------------------------------------
 
+-- Szerokość podglądu 3D i wynikające z niej wcięcia tekstu. Wszystkie
+-- teksty w wierszu zaczynają się za podglądem, a kończą przed przyciskiem.
+local PREVIEW = 70
+local TEXT_X = PREVIEW + Theme.SPACE.md
+local TEXT_INSET = TEXT_X + 118
+
 local function buildStatBars(parent: Instance, definition: Types.RodDefinition)
+	local slice = 1 / #STATS
+
 	for index, spec in STATS do
 		local track, fill = Theme.progress({
 			Name = spec.label,
-			Size = UDim2.new(0.3, -6, 0, 5),
-			Position = UDim2.fromScale((index - 1) * 0.3 + 0.02, 0),
+			Size = UDim2.new(slice, -6, 0, 5),
+			Position = UDim2.fromScale((index - 1) * slice, 0),
 		}, spec.color)
 
 		fill.Size = UDim2.fromScale(NORMALIZERS[index](definition), 1)
@@ -131,41 +149,59 @@ local function buildRow(definition: Types.RodDefinition): RowHandle
 		Text = "",
 	})
 
+	local status = Theme.label({
+		Name = "StatLegend",
+		Size = UDim2.new(1, -TEXT_INSET, 0, 16),
+		Position = UDim2.fromOffset(TEXT_X, 24),
+		TextSize = Theme.TEXT.micro,
+		TextColor3 = Theme.COLOR.textMuted,
+		-- Legenda jest STAŁA — paski niżej pokazują wartości. Powtarzanie
+		-- liczb w tekście zdublowałoby to, co i tak widać.
+		Text = "szczęście · tempo brań · okno · żyłka",
+	})
+
 	local statArea = Theme.create("Frame", {
 		Name = "Stats",
-		Size = UDim2.new(1, -124, 0, 5),
-		Position = UDim2.fromOffset(0, 44),
+		Size = UDim2.new(1, -TEXT_INSET, 0, 5),
+		Position = UDim2.fromOffset(TEXT_X, 46),
 		BackgroundTransparency = 1,
 	}) :: Frame
 
 	buildStatBars(statArea, definition)
 
+	-- Podgląd 3D tej samej wędki, którą gracz dostanie do ręki — model
+	-- pochodzi z `shared/Util/RodModel`, nie z osobnego obrazka.
+	local preview = Theme.modelPreview({
+		Name = "Preview",
+		Size = UDim2.fromOffset(PREVIEW, PREVIEW),
+		Position = UDim2.fromOffset(0, 0),
+		BackgroundColor3 = Theme.COLOR.panel,
+		BackgroundTransparency = 0.35,
+	}, RodModel.toPreview(definition), 7.5)
+
+	Theme.corner(Theme.RADIUS.sm).Parent = preview
+
 	local frame = Theme.create(
 		"Frame",
 		{
 			Name = definition.id,
-			Size = UDim2.new(1, -10, 0, 74),
+			Size = UDim2.new(1, -10, 0, 80),
 			LayoutOrder = definition.order,
 			BackgroundColor3 = Theme.COLOR.panelAlt,
 			BackgroundTransparency = 0.25,
 			BorderSizePixel = 0,
 		},
 		Theme.corner(Theme.RADIUS.md),
-		Theme.padding(Theme.SPACE.md, Theme.SPACE.md),
+		Theme.padding(Theme.SPACE.sm, Theme.SPACE.md),
+		preview,
 		Theme.label({
-			Size = UDim2.new(1, -124, 0, 22),
+			Size = UDim2.new(1, -TEXT_INSET, 0, 22),
+			Position = UDim2.fromOffset(TEXT_X, 2),
 			Font = Theme.FONT_BOLD,
 			TextSize = Theme.TEXT.body,
 			Text = definition.displayName,
 		}),
-		Theme.label({
-			Name = "StatLegend",
-			Size = UDim2.new(1, -124, 0, 16),
-			Position = UDim2.fromOffset(0, 22),
-			TextSize = Theme.TEXT.micro,
-			TextColor3 = Theme.COLOR.textMuted,
-			Text = `szczęście · tempo brań · okno {Format.seconds(definition.reelWindow)}`,
-		}),
+		status,
 		statArea,
 		button
 	) :: Frame
@@ -196,17 +232,7 @@ function ShopPanel.mount(parent: Instance)
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 	}, Theme.list(Theme.SPACE.sm)) :: ScrollingFrame
 
-	local close = Theme.button({
-		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromOffset(36, 36),
-		BackgroundColor3 = Theme.COLOR.panelAlt,
-		TextColor3 = Theme.COLOR.textMuted,
-		TextSize = Theme.TEXT.lead,
-		Text = "✕",
-	})
-
+	local close = Theme.closeButton({})
 	close.MouseButton1Click:Connect(function()
 		ShopPanel.setVisible(false)
 	end)

@@ -278,6 +278,52 @@ function Bobber.dip()
 	end)
 end
 
+--[[
+	Przełącza spławik w tryb walki.
+
+	Zatrzymuje kołysanie na fali: od tej chwili pozycję spławika wyznacza
+	napięcie żyłki, a nie sinusoida. Bez tego obie pętle pisałyby po tym
+	samym polu i spławik drgałby losowo.
+]]
+function Bobber.beginFight()
+	stopMotion()
+end
+
+--[[
+	Odwzorowuje stan walki na spławiku i żyłce.
+
+	Wzrok gracza jest na WODZIE, nie na pasku — pasek mówi dokładne liczby,
+	ale to spławik mówi „teraz". Dlatego żyłka napina się wraz z napięciem
+	(sag znika), czerwienieje przy wysokim i szarpie przy zrywie ryby.
+
+	Wołane 20 razy na sekundę, więc nie tworzy tu żadnych instancji.
+]]
+function Bobber.setTension(tension: number, surging: boolean)
+	local float = bobber
+	local line = beam
+	if not float then
+		return
+	end
+
+	-- Zanurzenie rośnie z napięciem: im mocniej holujesz, tym głębiej
+	-- spławik siedzi w wodzie.
+	local sink = math.clamp(tension, 0, 1) * 0.42
+	float.Position = Vector3.new(float.Position.X, restY - sink, float.Position.Z)
+
+	if not line then
+		return
+	end
+
+	-- Napięta żyłka to prosta linia; luźna zwisa. `CurveSize` to odległość
+	-- punktu kontrolnego Béziera, więc zerowanie go prostuje żyłkę.
+	line.CurveSize1 = -(1 - math.clamp(tension, 0, 1)) * 2.4
+	line.Color = ColorSequence.new(
+		Color3.fromRGB(236, 240, 248):Lerp(Color3.fromRGB(255, 96, 96), math.clamp(tension, 0, 1))
+	)
+	line.Width0 = if surging then 0.05 else 0.03
+	line.Width1 = line.Width0
+end
+
 --[[ Plusk przy wyciągnięciu ryby. Wołany zanim spławik zniknie. ]]
 function Bobber.splash()
 	local float = bobber

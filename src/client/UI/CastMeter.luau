@@ -1,17 +1,23 @@
 --!strict
 --[[
-	CastMeter — pasek minigry na dole ekranu.
+	CastMeter — pasek rozgrywki na dole ekranu.
 
-	Stany: Zarzucono (czekanie) -> PODETNIJ (okno) -> wynik.
+	Cztery stany, jeden po drugim:
 
-	WAŻNE: pasek jest TYLKO podpowiedzią wizualną. O trafieniu decyduje serwer,
-	mierząc czas od swojego `BiteStarted`. Klient startuje animację o jeden
-	ping później, więc jego pasek jest minimalnie z tyłu. Nie „naprawiajcie"
-	tego wysyłaniem czasu z klienta — to otwiera drzwi do podrabiania trafień.
+	  Zarzucono  czekanie na branie
+	  PODETNIJ   okno na zacięcie (pasek ucieka)
+	  HOLUJ      walka: dwa paski idące w przeciwne strony
+	  wynik      co się stało
 
-	Zielona strefa jest po PRAWEJ, bo pasek opada w lewo: pierwsze chwile okna
-	to jego prawa część. Narysowanie jej po lewej (gdzie pasek kończy bieg)
-	uczyłoby gracza odwrotnego odruchu.
+	WAŻNE: paski są TYLKO podpowiedzią wizualną. O wszystkim decyduje serwer.
+	Klient dostaje stan walki 20 razy na sekundę i interpoluje między
+	próbkami — bez tego paski skakałyby co 50 ms i nie dałoby się na nich
+	polegać przy decyzji „puścić czy trzymać".
+
+	Nie próbujcie symulować walki lokalnie dla gładkości. Interpolacja
+	w stronę ostatniego znanego stanu jest bezpieczna (najwyżej zostaje
+	o pół klatki w tyle), a własna symulacja rozjechałaby się z serwerem
+	i pokazywała zerwaną żyłkę tam, gdzie serwer widzi złowioną rybę.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -28,23 +34,38 @@ local Theme = require(script.Parent.Theme)
 
 local CastMeter = {}
 
-local DESKTOP_SIZE = Vector2.new(420, 118)
-local PHONE_SIZE = Vector2.new(320, 104)
+local DESKTOP_SIZE = Vector2.new(420, 150)
+local PHONE_SIZE = Vector2.new(330, 136)
+
+-- Jak szybko paski doganiają stan z serwera. 14/s domyka różnicę
+-- w ~0,07 s, czyli szybciej, niż trwa jeden tick serwera.
+local LERP_SPEED = 14
 
 local root: Frame? = nil
 local accentBar: Frame? = nil
-local fill: Frame? = nil
-local perfectZone: Frame? = nil
 local titleLabel: TextLabel? = nil
 local hintLabel: TextLabel? = nil
+
+local progressFill: Frame? = nil
+local perfectZone: Frame? = nil
+local tensionRow: Frame? = nil
+local tensionFill: Frame? = nil
+local tensionLabel: TextLabel? = nil
 
 local biteStartedAt: number? = nil
 local biteWindow = 0
 local renderConnection: RBXScriptConnection? = nil
 
+-- Cele interpolacji dla walki.
+local fighting = false
+local targetProgress = 0
+local targetTension = 0
+local shownProgress = 0
+local shownTension = 0
+local surging = false
+
 -- Rośnie przy każdej zmianie stanu. Opóźnione „schowaj się" porównuje swoją
 -- generację z bieżącą i odpuszcza, jeśli w międzyczasie coś się zmieniło.
--- Bez tego timer ze starego wyniku gasiłby świeżo rozpoczęte zarzucenie.
 local generation = 0
 
 local function stopRender()
@@ -58,6 +79,7 @@ end
 local function beginState(accent: Color3): number
 	stopRender()
 	generation += 1
+	fighting = false
 
 	if accentBar then
 		accentBar.BackgroundColor3 = accent
@@ -67,6 +89,15 @@ local function beginState(accent: Color3): number
 	end
 
 	return generation
+end
+
+local function setTensionVisible(visible: boolean)
+	if tensionRow then
+		tensionRow.Visible = visible
+	end
+	if perfectZone then
+		perfectZone.Visible = not visible and perfectZone.Visible
+	end
 end
 
 function CastMeter.mount(parent: Instance)
@@ -96,13 +127,13 @@ function CastMeter.mount(parent: Instance)
 		Text = "",
 	})
 
-	local meterTrack, meterFill = Theme.progress({
-		Name = "Track",
+	local track, fill = Theme.progress({
+		Name = "Progress",
 		Size = UDim2.new(1, 0, 0, 16),
 		LayoutOrder = 3,
 	}, Theme.COLOR.accent)
 
-	meterFill.Size = UDim2.fromScale(1, 1)
+	fill.Size = UDim2.fromScale(1, 1)
 
 	local zone = Theme.create("Frame", {
 		Name = "PerfectZone",
@@ -113,26 +144,57 @@ function CastMeter.mount(parent: Instance)
 		BackgroundTransparency = 0.5,
 		BorderSizePixel = 0,
 		ZIndex = 3,
-		Parent = meterTrack,
+		Parent = track,
 	}, Theme.corner(Theme.RADIUS.sm), Theme.stroke(Theme.COLOR.success, 1)) :: Frame
+
+	-- Pasek napięcia z podpisem. Podpis jest konieczny: dwa paski jeden pod
+	-- drugim bez etykiet to zagadka, a gracz ma na nią pół sekundy.
+	local tensionTrack, tensionBar = Theme.progress({
+		Name = "TensionTrack",
+		Size = UDim2.new(1, -62, 0, 10),
+		Position = UDim2.fromOffset(62, 2),
+	}, Theme.COLOR.success)
+
+	local tensionCaption = Theme.label({
+		Size = UDim2.fromOffset(58, 14),
+		Font = Theme.FONT_BOLD,
+		TextSize = Theme.TEXT.micro,
+		TextColor3 = Theme.COLOR.textMuted,
+		Text = "ŻYŁKA",
+	})
+
+	local tension = Theme.create("Frame", {
+		Name = "Tension",
+		Size = UDim2.new(1, 0, 0, 14),
+		LayoutOrder = 4,
+		BackgroundTransparency = 1,
+		Visible = false,
+	}, tensionCaption, tensionTrack) :: Frame
 
 	accentBar = bar
 	titleLabel = title
 	hintLabel = hint
-	fill = meterFill
+	progressFill = fill
 	perfectZone = zone
+	tensionRow = tension
+	tensionFill = tensionBar
+	tensionLabel = tensionCaption
 
 	local content = Theme.create("Frame", {
 		Name = "Content",
 		Size = UDim2.new(1, -12, 1, 0),
 		Position = UDim2.fromOffset(12, 0),
 		BackgroundTransparency = 1,
-	}, Theme.list(Theme.SPACE.xs), title, hint, meterTrack) :: Frame
+	}, Theme.list(Theme.SPACE.xs), title, hint, track, tension) :: Frame
 
+	-- Kotwica w LEWYM DOLNYM rogu. Wcześniej pasek stał na dole wyśrodkowany
+	-- i przy łowieniu zasłaniał dokładnie to, na co gracz patrzy — wodę
+	-- ze spławikiem. Cały interfejs trzyma się teraz lewej krawędzi,
+	-- a środek i prawa strona zostają dla rozgrywki.
 	root = Theme.panel({
 		Name = "CastMeter",
-		AnchorPoint = Vector2.new(0.5, 1),
-		Position = UDim2.new(0.5, 0, 1, -120),
+		AnchorPoint = Vector2.new(0, 1),
+		Position = UDim2.new(0, Theme.SPACE.lg, 1, -Theme.SPACE.lg),
 		Size = UDim2.fromOffset(DESKTOP_SIZE.X, DESKTOP_SIZE.Y),
 		BackgroundTransparency = 0.06,
 		Visible = false,
@@ -145,21 +207,18 @@ function CastMeter.mount(parent: Instance)
 			return
 		end
 
-		-- Na telefonie pasek idzie wyżej: dolny pas ekranu zajmują przyciski
-		-- dotykowe i wirtualny drążek Robloxa.
-		if device == "Phone" then
-			panel.Size = UDim2.fromOffset(PHONE_SIZE.X, PHONE_SIZE.Y)
-			panel.Position = UDim2.new(0.5, 0, 1, -190)
-		else
-			panel.Size = UDim2.fromOffset(DESKTOP_SIZE.X, DESKTOP_SIZE.Y)
-			panel.Position = UDim2.new(0.5, 0, 1, -120)
-		end
+		local size = if device == "Phone" then PHONE_SIZE else DESKTOP_SIZE
+		panel.Size = UDim2.fromOffset(size.X, size.Y)
+		-- Wysokość bierzemy z `Theme.castBottom`, nie z lokalnej stałej:
+		-- komunikaty układają się nad tym paskiem i muszą znać tę samą liczbę.
+		panel.Position = UDim2.new(0, Theme.edgeMargin(device), 1, -Theme.castBottom(device))
 	end)
 end
 
 --[[ Zarzucenie przyjęte — czekamy na branie. ]]
 function CastMeter.showWaiting()
 	beginState(Theme.COLOR.water)
+	setTensionVisible(false)
 
 	if titleLabel then
 		titleLabel.Text = "Zarzucono"
@@ -168,8 +227,8 @@ function CastMeter.showWaiting()
 	if hintLabel then
 		hintLabel.Text = "Czekaj na branie. Nie podcinaj za wcześnie."
 	end
-	if fill then
-		fill.Size = UDim2.fromScale(0, 1)
+	if progressFill then
+		progressFill.Size = UDim2.fromScale(0, 1)
 	end
 	if perfectZone then
 		perfectZone.Visible = false
@@ -179,6 +238,7 @@ end
 --[[ Ryba bierze. `window` to okno w sekundach podane przez serwer. ]]
 function CastMeter.showBite(window: number)
 	beginState(Theme.COLOR.warning)
+	setTensionVisible(false)
 
 	biteWindow = math.max(window, 0.05)
 	biteStartedAt = os.clock()
@@ -194,7 +254,7 @@ function CastMeter.showBite(window: number)
 		perfectZone.Visible = true
 	end
 
-	local bar = fill
+	local bar = progressFill
 	renderConnection = RunService.RenderStepped:Connect(function()
 		local startedAt = biteStartedAt
 		if not startedAt or not bar then
@@ -214,18 +274,113 @@ function CastMeter.showBite(window: number)
 	end)
 end
 
-local function describeCatch(caught: Types.CaughtFish, perfect: boolean): (string, string, Color3)
+--[[
+	Zacięcie udane — zaczyna się hol.
+
+	Od tego momentu paski są sterowane strumieniem z serwera, a ta pętla
+	tylko dogania wartości. Dlatego zerujemy `shown*`: start walki musi
+	wyglądać jak start, a nie jak ciąg dalszy poprzedniej.
+]]
+function CastMeter.showFight()
+	beginState(Theme.COLOR.success)
+	fighting = true
+
+	targetProgress = 0
+	targetTension = 0
+	shownProgress = 0
+	shownTension = 0
+	surging = false
+
+	setTensionVisible(true)
+	if perfectZone then
+		perfectZone.Visible = false
+	end
+
+	if progressFill then
+		progressFill.Size = UDim2.fromScale(0, 1)
+		progressFill.BackgroundColor3 = Theme.COLOR.accent
+	end
+
+	renderConnection = RunService.RenderStepped:Connect(function(delta: number)
+		local progress = progressFill
+		local tension = tensionFill
+		if not (progress and tension) then
+			stopRender()
+			return
+		end
+
+		local alpha = math.min(delta * LERP_SPEED, 1)
+		shownProgress += (targetProgress - shownProgress) * alpha
+		shownTension += (targetTension - shownTension) * alpha
+
+		progress.Size = UDim2.fromScale(math.clamp(shownProgress, 0, 1), 1)
+		tension.Size = UDim2.fromScale(math.clamp(shownTension, 0, 1), 1)
+
+		-- Napięcie zmienia kolor progresywnie: zielone, żółte przy 50%,
+		-- czerwone przy 100%. Gracz widzi, ile ma zapasu, nie patrząc
+		-- na długość paska.
+		tension.BackgroundColor3 = if shownTension < 0.5
+			then Theme.COLOR.success:Lerp(Theme.COLOR.warning, shownTension * 2)
+			else Theme.COLOR.warning:Lerp(Theme.COLOR.danger, (shownTension - 0.5) * 2)
+	end)
+end
+
+--[[ Stan walki z serwera. Zapisujemy cele; rysuje pętla z `showFight`. ]]
+function CastMeter.updateFight(state: Types.FightState)
+	if not fighting then
+		return
+	end
+
+	targetProgress = state.progress
+	targetTension = state.tension
+
+	if state.surging == surging then
+		return
+	end
+	surging = state.surging
+
+	-- Szarpnięcie musi być widoczne JEDNYM spojrzeniem — gracz ma na
+	-- reakcję ułamek sekundy i nie zdąży odczytać tempa przyrostu paska.
+	if titleLabel then
+		titleLabel.Text = if surging then "PUŚĆ!" else "HOLUJ"
+		titleLabel.TextColor3 = if surging then Theme.COLOR.danger else Theme.COLOR.success
+	end
+	if hintLabel then
+		hintLabel.Text = if surging
+			then "Ryba szarpie — napięcie rośnie trzy razy szybciej"
+			else "Trzymaj, żeby holować. Puszczaj przy szarpnięciu."
+	end
+	if accentBar then
+		accentBar.BackgroundColor3 = if surging then Theme.COLOR.danger else Theme.COLOR.success
+	end
+	if tensionLabel then
+		tensionLabel.TextColor3 = if surging then Theme.COLOR.danger else Theme.COLOR.textMuted
+	end
+end
+
+local function describeCatch(
+	caught: Types.CaughtFish,
+	perfect: boolean,
+	record: boolean
+): (string, string, Color3)
 	local definition = Fish.find(caught.fishId)
 	if not definition then
-		return caught.fishId, Format.coins(caught.price) .. " monet", Theme.COLOR.text
+		return caught.fishId, `{Format.coins(caught.price)} monet`, Theme.COLOR.text
 	end
 
 	local accent = Fish.RARITY_COLOR[definition.rarity]
 	local rarity = Fish.RARITY_LABEL[definition.rarity]
-	local bonus = if perfect then "  ·  <b>PERFEKCYJNE</b>" else ""
+
+	local extras = ""
+	if perfect then
+		extras ..= "  ·  <b>PERFEKCYJNE</b>"
+	end
+	if record then
+		extras ..= "  ·  <b>NOWY REKORD</b>"
+	end
 
 	return definition.displayName,
-		`{rarity}  ·  {Format.mass(caught.mass)}  ·  {Format.coins(caught.price)} monet{bonus}`,
+		`{rarity}  ·  {Format.mass(caught.mass)}  ·  {Format.coins(caught.price)} monet{extras}`,
 		accent
 end
 
@@ -240,11 +395,15 @@ function CastMeter.showResult(result: Types.CastResult)
 	local accent = Theme.COLOR.danger
 
 	if result.outcome == "Caught" and result.fish then
-		local name, details, color = describeCatch(result.fish, result.perfect)
+		local name, details, color = describeCatch(result.fish, result.perfect, result.record)
 		accent = color
 		title.Text = name
 		title.TextColor3 = color
 		hint.Text = details
+	elseif result.outcome == "LineSnapped" then
+		title.Text = "Zerwana żyłka"
+		title.TextColor3 = Theme.COLOR.danger
+		hint.Text = "Za długo holowałeś przy szarpnięciu. Mocniejsza wędka wybacza więcej."
 	elseif result.outcome == "Escaped" then
 		title.Text = "Ryba uciekła"
 		title.TextColor3 = Theme.COLOR.danger
@@ -262,9 +421,10 @@ function CastMeter.showResult(result: Types.CastResult)
 	end
 
 	local shownGeneration = beginState(accent)
+	setTensionVisible(false)
 
-	if fill then
-		fill.Size = UDim2.fromScale(0, 1)
+	if progressFill then
+		progressFill.Size = UDim2.fromScale(0, 1)
 	end
 	if perfectZone then
 		perfectZone.Visible = false
@@ -283,7 +443,7 @@ function CastMeter.showResult(result: Types.CastResult)
 		):Play()
 	end
 
-	task.delay(2.4, function()
+	task.delay(2.6, function()
 		if generation == shownGeneration and root then
 			root.Visible = false
 		end
@@ -292,6 +452,7 @@ end
 
 function CastMeter.hide()
 	beginState(Theme.COLOR.accent)
+	setTensionVisible(false)
 	if root then
 		root.Visible = false
 	end

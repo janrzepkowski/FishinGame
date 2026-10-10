@@ -66,6 +66,57 @@ local Game = {
 	MASS_SKEW = 2.2,
 
 	-- ---------------------------------------------------------------------
+	-- Walka z rybą
+	-- ---------------------------------------------------------------------
+	-- Po udanym podcięciu zaczyna się hol. Dwa paski idą w przeciwne strony:
+	--
+	--   postęp   rośnie, gdy holujesz        -> 1.0 = ryba wyholowana
+	--   napięcie rośnie, gdy holujesz        -> 1.0 = zerwana żyłka
+	--
+	-- Puszczenie opuszcza oba. Ryba co jakiś czas szarpie i wtedy napięcie
+	-- rośnie trzykrotnie szybciej — wtedy TRZEBA puścić. Cała gra polega
+	-- na rytmie: hol, puść przy szarpnięciu, hol dalej.
+	--
+	-- Symulacja chodzi na SERWERZE w stałym kroku. Klient wysyła wyłącznie
+	-- intencję („holuję" / „nie holuję"), nigdy postępu.
+
+	-- 20 Hz. Niżej widać skokowe paski, wyżej to marnowanie pasma na
+	-- różnicę, której nie da się zobaczyć.
+	FIGHT_TICK = 0.05,
+	-- Bazowy przyrost postępu na sekundę, dzielony przez `stamina` ryby.
+	FIGHT_PROGRESS_GAIN = 0.42,
+	-- Bazowy przyrost napięcia, mnożony przez `strength` ryby i dzielony
+	-- przez `lineStrength` wędki.
+	FIGHT_TENSION_GAIN = 0.22,
+	-- Mnożnik napięcia w trakcie szarpnięcia.
+	FIGHT_SURGE_TENSION = 3.0,
+	-- W trakcie szarpnięcia hol prawie nic nie daje — stąd opłaca się puścić.
+	FIGHT_SURGE_PROGRESS = 0.35,
+	-- Ubytki przy puszczonej żyłce.
+	FIGHT_SLACK_LOSS = 0.12,
+	FIGHT_TENSION_RECOVERY = 0.5,
+	-- Odstępy i długość szarpnięć (sekundy).
+	FIGHT_SURGE_GAP_MIN = 0.9,
+	FIGHT_SURGE_GAP_MAX = 2.2,
+	FIGHT_SURGE_MIN = 0.5,
+	FIGHT_SURGE_MAX = 1.1,
+	-- Bezpiecznik: gracz, który odłoży klawiaturę w trakcie walki, ma
+	-- zwolnić swój stan, a nie trzymać go w nieskończoność.
+	FIGHT_TIMEOUT = 30,
+
+	-- ---------------------------------------------------------------------
+	-- Ranking
+	-- ---------------------------------------------------------------------
+	LEADERBOARD_STORE = "TotalEarned_v1",
+	LEADERBOARD_SIZE = 8,
+	-- Jak często serwer CZYTA czołówkę.
+	LEADERBOARD_REFRESH = 60,
+	-- Jak często ZAPISUJE wyniki graczy. Rzadziej niż odczyt, bo i tak
+	-- pokazujemy dane sprzed minuty — częstszy zapis nic by nie przyspieszył,
+	-- a zjadałby limit zapytań.
+	LEADERBOARD_SUBMIT_INTERVAL = 120,
+
+	-- ---------------------------------------------------------------------
 	-- Sklep / skup
 	-- ---------------------------------------------------------------------
 	-- Jak blisko stoiska trzeba stać, żeby transakcja przeszła. Klient i tak

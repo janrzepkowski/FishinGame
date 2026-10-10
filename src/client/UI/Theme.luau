@@ -60,17 +60,55 @@ Theme.COLOR = table.freeze({
 Theme.SPACE = table.freeze({ xs = 4, sm = 8, md = 12, lg = 16, xl = 24 })
 
 --[[
-	Pionowy pas zarezerwowany w lewym górnym rogu na HUD.
+	=========================================================================
+	LEWA KRAWĘDŹ — jeden stos, jedno źródło wymiarów
+	=========================================================================
+	Cały interfejs siedzi przy lewej krawędzi, żeby środek i prawa strona
+	ekranu zostały dla rozgrywki. Od góry do dołu:
 
-	Istnieje, żeby HUD i toasty NIE MUSIAŁY o sobie wiedzieć. HUD wypełnia
-	ten pas, toasty zaczynają się pod nim. Gdyby zamiast tego toasty czytały
-	`AbsoluteSize` HUD-u, podskakiwałyby za każdym razem, gdy pojawia się
-	wskaźnik głębokości — czyli przy każdym zarzuceniu.
+	    HUD_BAND      monety, torba, wędka, głębokość   (góra)
+	    ...wolne...
+	    komunikaty    rosną w górę
+	    CAST_BAND     pasek łowienia i walki
+	    BOTTOM_SAFE   drążek ruchu Robloxa (tylko telefon)
 
-	Dlatego też HUD ma STAŁĄ wysokość, a nie `AutomaticSize`: przewidywalny
-	układ jest wart pustego paru pikseli, gdy wskaźnik głębokości jest ukryty.
+	Te liczby są TUTAJ, a nie w panelach, bo panele muszą się zgadzać co
+	do piksela. Gdyby każdy trzymał własną stałą, pierwsza zmiana rozmiaru
+	paska walki nasunęłaby na niego komunikaty i nikt by nie wiedział,
+	który plik poprawić.
+
+	Alternatywą byłoby czytanie `AbsoluteSize` sąsiada, ale wtedy komunikaty
+	podskakiwałyby za każdym razem, gdy pasek zmienia stan — czyli przy
+	każdym zarzuceniu.
 ]]
+
+-- Wysokość HUD-u. STAŁA, nie `AutomaticSize`: wskaźnik głębokości pojawia się
+-- i znika przy każdym zarzuceniu, a panel zmieniający wtedy rozmiar skakałby
+-- graczowi przed oczami w najgorszym momencie.
 Theme.HUD_BAND = table.freeze({ Desktop = 196, Tablet = 196, Phone = 158 })
+
+-- Miejsce zajęte przez pasek łowienia, licząc od dolnej krawędzi stosu.
+Theme.CAST_BAND = table.freeze({ Desktop = 162, Tablet = 162, Phone = 148 })
+
+-- Pas oddany systemowi: na telefonie dolny lewy róg to drążek ruchu Robloxa
+-- i nie da się go odzyskać. Na desktopie róg jest wolny.
+Theme.BOTTOM_SAFE = table.freeze({ Desktop = 0, Tablet = 0, Phone = 186 })
+
+--[[ Odstęp od krawędzi ekranu — mniejszy na telefonie, bo tam każdy
+     piksel szerokości jest w cenie. ]]
+function Theme.edgeMargin(device: Device): number
+	return if device == "Phone" then Theme.SPACE.sm else Theme.SPACE.lg
+end
+
+--[[ Dolna krawędź paska łowienia (offset od dołu ekranu). ]]
+function Theme.castBottom(device: Device): number
+	return Theme.BOTTOM_SAFE[device] + Theme.edgeMargin(device)
+end
+
+--[[ Dolna krawędź kolumny komunikatów: nad paskiem łowienia. ]]
+function Theme.toastBottom(device: Device): number
+	return Theme.castBottom(device) + Theme.CAST_BAND[device] + Theme.SPACE.sm
+end
 Theme.RADIUS = table.freeze({ sm = 6, md = 10, lg = 16, pill = 999 })
 Theme.TEXT = table.freeze({ micro = 11, small = 13, body = 15, lead = 17, title = 21, hero = 30 })
 
@@ -273,6 +311,104 @@ function Theme.progress(props: { [string]: any }, fillColor: Color3): (Frame, Fr
 
 	local track = Theme.create("Frame", merged, Theme.corner(Theme.RADIUS.sm), fill) :: Frame
 	return track, fill
+end
+
+--[[
+	Ikona zamknięcia: dwie obrócone belki zamiast znaku „✕".
+
+	Glif z czcionki wygląda inaczej na każdej platformie i potrafi być
+	nieosiowany w pionie. Dwie ramki obrócone o ±45° dają zawsze ten sam,
+	równy krzyżyk i nie wymagają wgrywania obrazka.
+]]
+function Theme.closeIcon(color: Color3?, thickness: number?): Frame
+	local tint = color or Theme.COLOR.textMuted
+	local bar = thickness or 2
+
+	local function stroke(rotation: number): Frame
+		return Theme.create("Frame", {
+			AnchorPoint = Vector2.new(0.5, 0.5),
+			Position = UDim2.fromScale(0.5, 0.5),
+			Size = UDim2.new(0.52, 0, 0, bar),
+			Rotation = rotation,
+			BackgroundColor3 = tint,
+			BorderSizePixel = 0,
+		}, Theme.corner(1)) :: Frame
+	end
+
+	return Theme.create("Frame", {
+		Name = "CloseIcon",
+		Size = UDim2.fromScale(1, 1),
+		BackgroundTransparency = 1,
+	}, stroke(45), stroke(-45)) :: Frame
+end
+
+--[[
+	Przycisk zamknięcia z ikoną X. Zwraca gotowy przycisk — wywołujący
+	podpina tylko `MouseButton1Click`.
+]]
+function Theme.closeButton(props: { [string]: any }): TextButton
+	local merged = merge({
+		Name = "Close",
+		AnchorPoint = Vector2.new(1, 0),
+		Position = UDim2.fromScale(1, 0),
+		-- 34 px to minimum, w które da się trafić palcem bez celowania.
+		Size = UDim2.fromOffset(34, 34),
+		BackgroundColor3 = Theme.COLOR.panelAlt,
+		Text = "",
+	}, props)
+
+	local button = Theme.button(merged, Theme.closeIcon(Theme.COLOR.text, 2))
+
+	local corner = button:FindFirstChildOfClass("UICorner")
+	if corner then
+		corner.CornerRadius = UDim.new(0.5, 0)
+	end
+
+	return button
+end
+
+--[[
+	Podgląd 3D modelu w UI.
+
+	Używamy ViewportFrame, a nie obrazka, z jednego powodu: obrazek trzeba
+	wyrenderować, wgrać na Roblox i trzymać jego ID w kodzie. Przy czterech
+	wędkach to cztery assety do utrzymania, które rozjadą się z modelem
+	przy pierwszej zmianie kształtu. ViewportFrame pokazuje DOKŁADNIE ten
+	model, który gracz trzyma w ręce — i aktualizuje się sam.
+
+	`model` musi mieć ustawiony PrimaryPart i stać w okolicy początku układu.
+
+	Nazwa `modelPreview`, a nie `viewport`, bo `Theme.viewport()` już istnieje
+	i zwraca rozmiar okna gry. Dwie różne rzeczy pod jedną nazwą to pewny błąd
+	przy pierwszym autouzupełnieniu.
+]]
+function Theme.modelPreview(props: { [string]: any }, model: Model, distance: number): ViewportFrame
+	local merged = merge({
+		BackgroundTransparency = 1,
+		-- Lekkie podświetlenie od frontu, żeby model nie był płaską sylwetką.
+		Ambient = Color3.fromRGB(180, 186, 196),
+		LightColor = Color3.fromRGB(255, 250, 240),
+		LightDirection = Vector3.new(-0.4, -1, -0.6),
+	}, props)
+
+	local frame = Theme.create("ViewportFrame", merged) :: ViewportFrame
+
+	-- Obrót modelu, nie kamery: łatwiej dobrać jeden kąt pod wszystkie
+	-- podglądy niż osobną pozycję kamery dla każdego.
+	model:PivotTo(CFrame.Angles(0, math.rad(-28), math.rad(14)))
+	model.Parent = frame
+
+	local camera = Instance.new("Camera")
+	camera.FieldOfView = 36
+	-- Patrzymy na ŚRODEK bryły modelu, nie na jego pivot: pivot wędki jest
+	-- w rączce, więc kamera wycelowana w niego ucięłaby pół kija.
+	local center = model:GetBoundingBox()
+	camera.CFrame =
+		CFrame.lookAt(center.Position + Vector3.new(0, distance * 0.3, distance), center.Position)
+	camera.Parent = frame
+	frame.CurrentCamera = camera
+
+	return frame
 end
 
 --[[ Kolorowa plakietka — rzadkość ryby, status wędki, etykieta głębokości. ]]

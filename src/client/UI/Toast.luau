@@ -1,30 +1,27 @@
 --!strict
 --[[
-	Toast — krótkie komunikaty w lewej kolumnie, pod HUD-em.
+	Toast — komunikaty w LEWYM DOLNYM rogu.
 
 	=========================================================================
-	DLACZEGO AKURAT TAM
+	DLACZEGO TEN RÓG
 	=========================================================================
-	Roblox nie dokumentuje pozycji swojego CoreGui, więc trzeba to zmapować
-	ręcznie. Zajętość ekranu wygląda tak:
+	Roblox nie dokumentuje pozycji swojego CoreGui, więc zajętość ekranu
+	trzeba zmapować ręcznie:
 
 	  góra-lewo    czat Robloxa (pod topbarem)  +  nasz HUD
 	  góra-prawo   lista graczy / leaderstats
-	  dół-środek   pasek narzędzi  +  nasz pasek łowienia
+	  dół-środek   pasek narzędzi  +  slot wędki
 	  dół-prawo    przycisk skoku (mobile)  +  nasze sterowanie dotykowe
-	  dół-lewo     drążek ruchu (mobile)
+	  dół-lewo     WOLNE na desktopie; na telefonie drążek ruchu
 
-	Na desktopie wolny jest dół-lewo, ale na telefonie siedzi tam drążek.
-	Lewa kolumna pod HUD-em jest jedynym miejscem wolnym na WSZYSTKICH
-	klasach urządzeń — i nie wymaga wariantu per urządzenie, czyli nie
-	dokłada kolejnego sposobu na zepsucie układu.
+	Cały nasz interfejs trzyma się LEWEJ KRAWĘDZI, żeby środek i prawa
+	strona ekranu zostały dla rozgrywki. Komunikaty siedzą tuż nad paskiem
+	łowienia i rosną w górę jak log — najświeższy najbliżej dołu, czyli tam,
+	gdzie wzrok i tak wraca po każdym zarzuceniu.
 
-	Drugi powód jest projektowy: komunikat „Brakuje 200 monet" ląduje
-	bezpośrednio pod licznikiem monet. Informacja i jej kontekst są obok
-	siebie, a gracz ma jedno miejsce, w które patrzy.
-
-	Pionowy pas na HUD rezerwuje `Theme.HUD_BAND`. Dzięki temu toasty nie
-	muszą znać wysokości HUD-u ani na nią reagować.
+	Wysokości NIE są tu zapisane: `Theme.toastBottom` liczy je z rozmiaru
+	paska łowienia. Dwie stałe w dwóch plikach rozjechałyby się przy
+	pierwszej zmianie rozmiaru paska i komunikaty weszłyby na niego.
 
 	=========================================================================
 	Treść przychodzi z serwera przez `Net.Notify`, bo to serwer wie, dlaczego
@@ -48,9 +45,14 @@ local FADE = 0.28
 -- Przy spamie (np. klikanie w pełną torbę) nie zasłaniamy pół ekranu.
 local MAX_VISIBLE = 4
 local WIDTH = 268
+local WIDTH_PHONE = 200
+local ROW = 44
 
 local container: Frame? = nil
 local active = 0
+-- Rośnie z każdym komunikatem. Wyższy LayoutOrder = niżej w kolumnie,
+-- czyli najnowszy toast ląduje przy samym rogu.
+local sequence = 0
 
 type Style = { color: Color3, icon: string }
 
@@ -65,13 +67,19 @@ function Toast.mount(parent: Instance)
 		"Frame",
 		{
 			Name = "Toasts",
-			Size = UDim2.fromOffset(WIDTH, 260),
+			-- Kotwica w LEWYM DOLNYM rogu samej kolumny: rośnie w górę,
+			-- a nie w dół poza ekran.
+			AnchorPoint = Vector2.new(0, 1),
+			Size = UDim2.fromOffset(WIDTH, MAX_VISIBLE * (ROW + Theme.SPACE.sm)),
 			BackgroundTransparency = 1,
 			Parent = parent,
 		},
 		Theme.create("UIListLayout", {
 			FillDirection = Enum.FillDirection.Vertical,
 			HorizontalAlignment = Enum.HorizontalAlignment.Left,
+			-- Układanie od dołu: przy jednym komunikacie siedzi on w rogu,
+			-- a nie w powietrzu na górze pustej kolumny.
+			VerticalAlignment = Enum.VerticalAlignment.Bottom,
 			SortOrder = Enum.SortOrder.LayoutOrder,
 			Padding = UDim.new(0, Theme.SPACE.sm),
 		})
@@ -80,11 +88,10 @@ function Toast.mount(parent: Instance)
 	container = column
 
 	Theme.onLayout(function(device: Theme.Device)
-		local margin = if device == "Phone" then Theme.SPACE.sm else Theme.SPACE.lg
-		local width = if device == "Phone" then 196 else WIDTH
+		local width = if device == "Phone" then WIDTH_PHONE else WIDTH
 
-		column.Position = UDim2.fromOffset(margin, Theme.HUD_BAND[device])
-		column.Size = UDim2.fromOffset(width, 260)
+		column.Size = UDim2.fromOffset(width, MAX_VISIBLE * (ROW + Theme.SPACE.sm))
+		column.Position = UDim2.new(0, Theme.edgeMargin(device), 1, -Theme.toastBottom(device))
 	end)
 end
 
@@ -94,6 +101,7 @@ function Toast.show(message: string, kind: string?)
 		return
 	end
 	active += 1
+	sequence += 1
 
 	local style = STYLES[kind or "Info"] or STYLES.Info
 
@@ -125,13 +133,14 @@ function Toast.show(message: string, kind: string?)
 
 	local inner = Theme.create("Frame", {
 		Name = "Inner",
-		Size = UDim2.new(1, 0, 1, 0),
+		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 	}, icon, label) :: Frame
 
 	local frame = Theme.panel({
 		Name = "Toast",
-		Size = UDim2.new(1, 0, 0, 44),
+		Size = UDim2.new(1, 0, 0, ROW),
+		LayoutOrder = sequence,
 		BackgroundTransparency = 0.04,
 		Parent = parent,
 	}, Theme.padding(Theme.SPACE.sm, Theme.SPACE.md), inner)

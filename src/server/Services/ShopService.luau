@@ -20,6 +20,7 @@ local Net = require(ReplicatedStorage.Shared.Net)
 local Rods = require(ReplicatedStorage.Shared.Config.Rods)
 local Spatial = require(ReplicatedStorage.Shared.Util.Spatial)
 
+local Analytics = require(script.Parent.Analytics)
 local DataService = require(script.Parent.DataService)
 local RodService = require(script.Parent.RodService)
 local WorldBuilder = require(script.Parent.Parent.World.WorldBuilder)
@@ -66,6 +67,9 @@ local function onRequestSellAll(player: Player)
 
 	DataService.mutate(player, function(target)
 		target.coins += total
+		-- `totalEarned` rośnie tylko w górę i nigdy nie maleje przy wydawaniu.
+		-- To on zasila ranking — patrz LeaderboardService.
+		target.totalEarned += total
 		target.inventory = {}
 	end)
 
@@ -74,6 +78,10 @@ local function onRequestSellAll(player: Player)
 		`Sprzedano {count} szt. za {Format.coins(total)} monet.`,
 		"Success"
 	)
+
+	local updated = DataService.get(player)
+	Analytics.funnelStep(player, 4, "Sold")
+	Analytics.coinsEarned(player, total, if updated then updated.coins else total, "FishSale")
 end
 
 local function onRequestBuyRod(player: Player, rodId: unknown)
@@ -119,6 +127,14 @@ local function onRequestBuyRod(player: Player, rodId: unknown)
 
 	task.spawn(RodService.refresh, player)
 	Net.Notify:FireClient(player, `Kupiono: {definition.displayName}`, "Success")
+
+	local updated = DataService.get(player)
+	Analytics.coinsSpent(
+		player,
+		definition.price,
+		if updated then updated.coins else 0,
+		definition.id
+	)
 end
 
 local function onRequestEquipRod(player: Player, rodId: unknown)

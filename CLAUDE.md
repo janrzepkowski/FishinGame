@@ -88,6 +88,10 @@ Te pliki nie zawierają logiki gry — tylko kolejność. Nie dokładaj do nich 
    nie wprost w ScreenGui — inaczej ominie je skalowanie. Wariant układu
    na telefon dodaje się przez `Theme.onLayout`.
 
+   **Środek ekranu jest dla rozgrywki.** Komunikaty idą w lewy dolny róg,
+   HUD w lewy górny, pasek walki na dół. Nic nowego nie ląduje w środku
+   poza oknami, które gracz sam otworzył.
+
 9. **Czysta matematyka w `shared/` ma mieć test.** `tests/run.luau` chodzi
    pod samym `luau`, bez Robloxa, w ułamku sekundy. Warunek: moduł nie może
    dotykać typów Robloxa **na poziomie modułu** (stąd `Lake.CENTER_X` jako
@@ -97,6 +101,19 @@ Te pliki nie zawierają logiki gry — tylko kolejność. Nie dokładaj do nich 
 10. **Wymiary budynków liczymy w metrach przez `Build.m()`.** Postać R15 ma
     5,5 studa = 1,8 m. Budynek dobrany na oko w widoku z góry wygląda
     karłowato, gdy stanie obok niego gracz.
+
+11. **`Tool.Grip` ustawiamy jednym CFrame'em.** Nigdy `GripForward`/`GripUp`
+    osobno — są wyliczane z macierzy i pojedynczo zostawiają ją niespójną.
+    `GripForward` to LookVector, czyli **−Z**; ustawienie go na `(0,0,1)`
+    obraca narzędzie o 180°.
+
+12. **Modele pokazywane w UI biorą geometrię z `shared/`, nie z obrazków.**
+    `RodModel` opisuje wędkę jako dane; Tool, sklep i pasek czytają to samo.
+    Obrazek wgrany na Roblox rozjedzie się z modelem przy pierwszej zmianie.
+
+13. **Ciągły strumień stanu idzie `UnreliableRemoteEvent`em**, zdarzenie
+    jednorazowe — zwykłym. Zgubiona klatka walki nic nie znaczy, zgubione
+    „złowiłeś rybę" psuje grę.
 
 ## Konwencje Luau
 

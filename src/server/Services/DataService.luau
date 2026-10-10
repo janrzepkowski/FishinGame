@@ -39,6 +39,9 @@ local profiles: { [Player]: Profile } = {}
 local store: DataStore? = nil
 local persistenceEnabled = false
 
+-- Serwisy, które chcą coś zrobić dokładnie raz, gdy profil się wczyta.
+local readyListeners: { (Player) -> () } = {}
+
 -- ---------------------------------------------------------------------------
 -- Domyślny profil i walidacja wczytanych danych
 -- ---------------------------------------------------------------------------
@@ -51,6 +54,7 @@ local function defaultProfile(): Profile
 		equippedRod = GameConfig.STARTING_ROD,
 		inventory = {},
 		records = {},
+		totalEarned = 0,
 	}
 end
 
@@ -137,6 +141,17 @@ local function sanitize(raw: unknown): Profile
 		end
 	end
 
+	-- `totalEarned` doszło po pierwszym wydaniu. Stare profile nie mają tego
+	-- pola i dostają 0 — czyli weterani startują w rankingu od zera. Lepsze
+	-- to niż zgadywanie wartości z `coins`, bo monety są wydawane i dałyby
+	-- liczbę niższą od prawdy u każdego, kto cokolwiek kupił.
+	profile.totalEarned = math.floor(readNumber(data.totalEarned, 0, 0))
+
+	-- Pola, których tu nie ma, są po prostu pomijane — i to jest cała nasza
+	-- ścieżka migracji W OBIE STRONY. Usunięcie funkcji (np. zadań dziennych)
+	-- nie wymaga żadnego kodu czyszczącego: stare profile mają w DataStore
+	-- osierocony klucz, którego `sanitize` nie przepisuje, i przy pierwszym
+	-- zapisie znika sam.
 	return profile
 end
 
@@ -357,6 +372,24 @@ function DataService.push(player: Player)
 end
 
 --[[
+	Rejestruje reakcję na wczytanie profilu gracza.
+
+	Zastępuje wzorzec „zapętl `waitFor` w każdym serwisie": tamto działa,
+	ale każdy serwis odpytuje osobno i każdy musi sam obsłużyć przypadek
+	gracza, który wyszedł w trakcie. Tutaj jest to raz, w jednym miejscu.
+
+	Callback leci też dla graczy, którzy mają profil JUŻ TERAZ — serwis
+	startujący po DataService (albo wgrany hot-reloadem) nie może ich pominąć.
+]]
+function DataService.onProfileReady(listener: (Player) -> ())
+	table.insert(readyListeners, listener)
+
+	for player in profiles do
+		task.spawn(listener, player)
+	end
+end
+
+--[[
 	Jedyna droga do zmiany profilu.
 
 	Zwraca false, gdy profil nie jest gotowy — wywołujący ma wtedy przerwać
@@ -400,6 +433,19 @@ function DataService.start()
 
 		profiles[player] = profile
 		DataService.push(player)
+
+		for _, listener in table.clone(readyListeners) do
+			-- `task.spawn`, bo listener może yieldować (np. zapis po
+			-- wygenerowaniu zadań), a to nie może blokować wejścia kolejnych
+			-- graczy. `xpcall` — bo jeden wywrócony serwis nie może zabrać
+			-- ze sobą pozostałych.
+			task.spawn(function()
+				xpcall(listener, function(err)
+					warn(`[DataService] listener profilu rzucił błędem: {tostring(err)}`)
+					warn(debug.traceback(nil, 2))
+				end, player)
+			end)
+		end
 	end
 
 	-- Gracze, którzy weszli przed startem tego serwisu (przy Rojo sync

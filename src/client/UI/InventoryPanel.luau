@@ -140,18 +140,7 @@ function InventoryPanel.mount(parent: Instance)
 		ScrollingDirection = Enum.ScrollingDirection.Y,
 	}, Theme.list(Theme.SPACE.xs)) :: ScrollingFrame
 
-	local close = Theme.button({
-		Name = "Close",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		-- 32 px to minimum, w które da się trafić palcem bez celowania.
-		Size = UDim2.fromOffset(32, 32),
-		BackgroundColor3 = Theme.COLOR.panelAlt,
-		TextColor3 = Theme.COLOR.textMuted,
-		TextSize = Theme.TEXT.lead,
-		Text = "✕",
-	})
-
+	local close = Theme.closeButton({})
 	close.MouseButton1Click:Connect(function()
 		InventoryPanel.setVisible(false)
 	end)

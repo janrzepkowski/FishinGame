@@ -169,24 +169,59 @@ rojo build default.project.json --output build/FishinGame.rbxl
    nowe utworzyłoby trzecią grę z osobnym linkiem i osobnymi danymi
 4. Potwierdź nadpisanie
 
-### Udostępnienie zespołowi nietechnicznemu
+### Udostępnienie osobom spoza zespołu
+
+**To jest krok, bez którego nic nie zadziała.** Samo „Publish" NIE udostępnia
+gry nikomu — tworzy tylko wersję na serwerach Robloxa. Dopóki doświadczenie
+jest **Private**, wejdą do niego wyłącznie osoby z uprawnieniami do edycji;
+każdy inny zobaczy „this experience is not available".
 
 Creator Dashboard → twoja Experience → **Settings → Permissions**
-→ Playability: **Public**.
+→ Playability: **Public** → Save.
 
-Dopóki doświadczenie jest Private, wejdą do niego wyłącznie osoby
-z uprawnieniami do edycji. Zwykły gracz zobaczy „this experience is
-not available".
-
-Po ustawieniu na Public wyślij im po prostu link:
+Potem wystarczy link:
 
 ```
 https://www.roblox.com/games/<PLACE_ID>
 ```
 
-`PLACE_ID` znajdziesz w adresie strony doświadczenia w Creator Dashboard.
-Klikają, wchodzą, grają w kliencie Robloxa — bez Studio, bez gita,
-bez niczego.
+`PLACE_ID` jest w adresie strony doświadczenia w Creator Dashboard. Odbiorca
+klika, wchodzi, gra w kliencie Robloxa — bez Studio, bez gita, bez niczego.
+
+#### Experience Guidelines (kwestionariusz wieku)
+
+Roblox pyta o rodzaj treści w grze. **Nie blokuje to udostępnienia linkiem** —
+doświadczenie bez wypełnionego kwestionariusza jest traktowane jak **13+**
+i dorosły odbiorca z kontem wejdzie bez problemu.
+
+Kwestionariusz ma znaczenie dla ZASIĘGU: żeby gra była widoczna dla młodszych
+graczy i wyświetlała się szerzej w wyszukiwarce, Roblox wymaga wypełnienia
+guidelines, a dla kategorii „all ages" dodatkowo progu zaangażowania
+(ok. 250 kwalifikowanych wejść w 60 dni) albo jednorazowej opłaty.
+
+Do pokazania gry zespołowi albo rekruterowi nie trzeba nic z tego —
+wystarczy Playability: Public.
+
+#### Alternatywa: bez upubliczniania
+
+Jeśli gra ma zostać prywatna, dodaj odbiorców imiennie:
+Creator Dashboard → Experience → **Permissions → Collaborators** → wpisz ich
+nazwy użytkownika Robloxa → rola **Play**.
+
+Wymaga znajomości ich nazw i tego, żeby mieli konta. Przy jednorazowym pokazie
+Public jest prostszy; przy wewnętrznym buildzie — odwrotnie.
+
+### Które doświadczenie: DEV czy osobne
+
+Trzymaj dwa:
+
+- **FishinGame DEV** — Private, do testów ze Studio z włączonym API
+- **FishinGame** — Public, to co dostaje odbiorca
+
+Powód jest praktyczny: DataStore należy do doświadczenia, więc gdy testujesz
+w Studio podpiętym pod to samo doświadczenie, twoje testowe konto ląduje
+w tym samym rankingu, co prawdziwi gracze. Rekruter otwierający ranking
+zobaczyłby „janrzepkowski — 9 999 999 monet" z testu balansu.
 
 ### Gracze nie widzą zmian po publikacji
 

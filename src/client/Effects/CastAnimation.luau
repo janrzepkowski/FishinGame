@@ -28,21 +28,36 @@ local CastAnimation = {}
 
 export type Phase = "Idle" | "Cast" | "Hold" | "Bite"
 
--- Oś obrotu barku. To jest pokrętło do strojenia: jeśli ramię macha
--- w bok zamiast przed siebie, zmień oś tutaj, nie w kodzie animacji.
-local SWING_AXIS = Vector3.new(1, 0, 0)
+--[[
+	Oś obrotu barku.
+
+	X odpowiada za machnięcie przód-tył, czyli dokładnie to, co robi
+	wędkarz. Niewielka składowa Z dokłada odchylenie na zewnątrz, dzięki
+	czemu kij nie przechodzi graczowi przez głowę w fazie zamachu —
+	prawdziwy rzut też idzie lekko z boku, nad barkiem, a nie przez czubek.
+
+	Jeśli ramię macha w złą stronę, zmienia się TYLKO ta oś albo znaki
+	kątów niżej. Reszta animacji jest od tego niezależna.
+]]
+local SWING_AXIS = Vector3.new(1, 0, 0.22).Unit
 
 -- Czasy faz zamachu (sekundy od startu).
-local WINDUP_END = 0.26
-local WHIP_END = 0.40
+local WINDUP_END = 0.30
+local WHIP_END = 0.44
 -- Moment puszczenia żyłki. Celowo tuż PRZED końcem wymachu: spławik ma
 -- wylecieć w trakcie ruchu, a nie po jego zakończeniu.
-local RELEASE_AT = 0.33
-local SETTLE_END = 0.72
+local RELEASE_AT = 0.37
+local SETTLE_END = 0.78
 
--- Kąty w radianach. Ujemny = ramię w tył.
-local WINDUP_ANGLE = -0.95
-local WHIP_ANGLE = 0.78
+--[[
+	Kąty w radianach. Ujemny = ramię w tył, nad bark.
+
+	-72° to pozycja „na drugą godzinę" — tak wygląda zamach w prawdziwym
+	rzucie przez głowę. +49° to wyprost w przód, mniej więcej na dziesiątą.
+	Po wymachu ramię wraca do +13°, czyli trzyma wędkę lekko uniesioną.
+]]
+local WINDUP_ANGLE = -1.25
+local WHIP_ANGLE = 0.85
 local HOLD_ANGLE = 0.22
 
 local BIND_NAME = "FishinGameCast"

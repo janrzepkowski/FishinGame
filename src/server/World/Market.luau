@@ -39,14 +39,20 @@ local m = Build.m
 -- Wymiary (metry -> study)
 -- ---------------------------------------------------------------------------
 
-local WIDTH = m(4.6)
-local DEPTH = m(3.0)
+local WIDTH = m(5.2)
+local DEPTH = m(3.4)
 local DECK = m(0.12)
 local COUNTER_TOP = m(1.05)
 local COUNTER_DEPTH = m(0.62)
-local EAVES = m(2.35)
-local RIDGE = m(3.3)
-local OVERHANG = m(0.45)
+-- Okap na 3,3 m i kalenica na 4,9 m. Gracz ma 1,8 m, więc pod okapem jest
+-- półtora metra zapasu, a szczyt dachu sięga prawie trzech wzrostów.
+-- To już nie jest stragan, tylko budka targowa — i tak ma wyglądać.
+--
+-- Blat ZOSTAJE na 1,05 m: to wysokość lady, czyli funkcja człowieka,
+-- a nie budynku. Podnoszenie go razem z dachem zrobiłoby ladę pod brodę.
+local EAVES = m(3.3)
+local RIDGE = m(4.9)
+local OVERHANG = m(0.55)
 local POST = m(0.16)
 local PLANK = m(0.2)
 

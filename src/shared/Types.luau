@@ -17,6 +17,22 @@
 -- osobno w `spawnWeight`, bo chcemy móc je regulować niezależnie.
 export type Rarity = "Common" | "Uncommon" | "Rare" | "Epic" | "Legendary"
 
+--[[
+	Jak ryba walczy po zacięciu.
+
+	`strength` — jak szybko napina żyłkę, gdy holujesz (1.0 = bazowo).
+	`stamina`  — jak długo trwa walka; WYŻSZA wartość = DŁUŻSZA walka,
+	             bo dzieli tempo przyrostu postępu.
+
+	Dwie liczby zamiast jednej „trudności", bo to są różne odczucia:
+	silna ryba grozi zerwaniem żyłki, wytrzymała po prostu męczy. Sum jest
+	wytrzymały, ale nie szarpie; szczupak odwrotnie.
+]]
+export type FightProfile = {
+	strength: number,
+	stamina: number,
+}
+
 export type FishDefinition = {
 	id: string,
 	displayName: string,
@@ -28,6 +44,7 @@ export type FishDefinition = {
 	minMass: number,
 	maxMass: number,
 	color: Color3,
+	fight: FightProfile,
 }
 
 export type RodDefinition = {
@@ -43,6 +60,9 @@ export type RodDefinition = {
 	biteSpeed: number,
 	-- Ile sekund gracz ma na podcięcie. Lepsza wędka = większe okno.
 	reelWindow: number,
+	-- Dzielnik przyrostu napięcia w walce. Mocniejsza żyłka = można holować
+	-- dłużej bez zerwania, czyli lepszy sprzęt realnie ułatwia walkę.
+	lineStrength: number,
 	color: Color3,
 }
 
@@ -55,23 +75,32 @@ export type CaughtFish = {
 	price: number,
 }
 
+-- ---------------------------------------------------------------------------
+-- Profil
+-- ---------------------------------------------------------------------------
+
 export type Profile = {
 	coins: number,
 	totalCaught: number,
 	ownedRods: { [string]: boolean },
 	equippedRod: string,
 	inventory: { CaughtFish },
-	-- fishId -> największa złowiona masa. Czysto dla dumy gracza.
+	-- fishId -> największa złowiona masa. Zasila bestiariusz.
 	records: { [string]: number },
+	-- Suma monet zarobionych przez całe życie konta. Osobno od `coins`,
+	-- bo wydawanie nie może cofać pozycji w rankingu.
+	totalEarned: number,
 }
 
 export type CastOutcome =
-	-- Podcięte w oknie — ryba w ekwipunku.
+	-- Wyholowana — ryba w ekwipunku.
 	"Caught"
-	-- Okno minęło bez reakcji.
+	-- Okno na podcięcie minęło bez reakcji.
 	| "Escaped"
 	-- Klik przed braniem.
 	| "TooEarly"
+	-- Napięcie sięgnęło maksimum w trakcie walki.
+	| "LineSnapped"
 	-- Brania nie było, bo nie ma gdzie wsadzić ryby.
 	| "InventoryFull"
 
@@ -80,6 +109,25 @@ export type CastResult = {
 	fish: CaughtFish?,
 	-- Podcięcie w pierwszych N% okna — bonus do ceny.
 	perfect: boolean,
+	-- Czy to nowy rekord wagi dla tego gatunku.
+	record: boolean,
+}
+
+--[[
+	Stan walki wysyłany na kliencki pasek. Celowo NIE zawiera gatunku ani
+	trudności: gdyby zawierał, dałoby się porzucać walki z tanimi rybami
+	i łowić wyłącznie opłacalne. Napięcie i postęp wystarczą, żeby walkę
+	było czuć.
+]]
+export type FightState = {
+	progress: number,
+	tension: number,
+	surging: boolean,
+}
+
+export type LeaderboardEntry = {
+	name: string,
+	value: number,
 }
 
 export type NotifyKind = "Info" | "Success" | "Warning"

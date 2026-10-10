@@ -48,18 +48,55 @@ w Studio. Teraz F5 i grasz.
 
 Szczegóły, pułapki i co zrobić, gdy sync nie działa: **[docs/ROBLOX_STUDIO.md](docs/ROBLOX_STUDIO.md)**.
 
+## Pętla rozgrywki
+
+```
+zarzuć → czekaj na branie → PODETNIJ → WALKA → sprzedaj → lepsza wędka
+```
+
+**Walka jest sednem gry.** Po zacięciu dwa paski idą w przeciwne strony:
+
+| | rośnie, gdy | przy 100% |
+|---|---|---|
+| **postęp** | holujesz | ryba wyholowana |
+| **żyłka** | holujesz | zerwana linka |
+
+Puszczenie obniża oba. Ryba co jakiś czas **szarpie** — wtedy napięcie rośnie
+trzy razy szybciej i trzeba puścić. Cała rzecz polega na rytmie: hol, puść
+przy szarpnięciu, hol dalej.
+
+Każdy gatunek walczy inaczej. Szczupak szarpie gwałtownie i krótko, sum męczy
+długo bez zrywów, a Złota Rybka waży ćwierć kilo i zrywa żyłkę w sekundę.
+
 ## Sterowanie
 
 | Klawiatura | Dotyk | Akcja |
 |---|---|---|
 | LPM | duży okrągły przycisk | zarzuć, a przy braniu — podetnij |
+| **LPM (trzymaj)** | **przycisk (trzymaj)** | **holuj w trakcie walki** |
+| `1` | kliknięcie w slot wędki | wyjmij / schowaj wędkę |
 | `B` | przycisk ▦ | ekwipunek |
+| `J` | przycisk ✦ | dziennik: bestiariusz i ranking |
+| `Esc` | przycisk ✕ | zamknij otwarte okno |
 | `E` przy stoisku | `E` przy stoisku | sprzedaż połowu / sklep z wędkami |
 
-Wędka wyjmuje się sama — nie trzeba jej szukać na pasku.
+Wędka wyjmuje się sama przy pierwszym zarzuceniu — nie trzeba jej szukać.
+Klawiszem `1` można ją schować i wyjąć ręcznie.
 
 Podcięcie w pierwszych 30% okna daje bonus x1,5 do ceny.
 Podcięcie przed braniem kosztuje zarzucenie i 1,2 s blokady.
+
+## Progresja
+
+**Bestiariusz** — 12 gatunków, przy każdym zapisany rekord wagi. Klawisz `J`.
+
+**Ranking** — globalna lista najlepszych zarobków w dzienniku. Liczy się suma
+zarobiona przez całe życie konta, więc zakup wędki nie cofa pozycji.
+
+**Wędki** — cztery tiery. Każdy poprawia szczęście, tempo brań, okno
+na podcięcie i **wytrzymałość żyłki**. To ostatnie jest w praktyce
+najważniejsze: na startowej wędce szczupaka trzeba holować ostrożnie,
+na turniejowej da się go przeciągnąć siłą.
 
 **Idź na koniec pomostu.** Jezioro ma schodkowe dno: 8 m przy brzegu,
 potem 16, 24 i 32 m w środku. Głębokość realnie podbija szansę na rzadkie

@@ -46,14 +46,14 @@ end
 
 local container = resolveContainer()
 
-local function remote(name: string): RemoteEvent
+local function resolve(name: string, className: string): Instance
 	if IS_SERVER then
 		local existing = container:FindFirstChild(name)
 		if existing then
-			return existing :: RemoteEvent
+			return existing
 		end
 
-		local event = Instance.new("RemoteEvent")
+		local event = Instance.new(className)
 		event.Name = name
 		event.Parent = container
 		return event
@@ -63,7 +63,25 @@ local function remote(name: string): RemoteEvent
 	if not found then
 		error(`Net: brak Remote'a "{name}" po {WAIT_TIMEOUT}s`)
 	end
-	return found :: RemoteEvent
+	return found
+end
+
+local function remote(name: string): RemoteEvent
+	return resolve(name, "RemoteEvent") :: RemoteEvent
+end
+
+--[[
+	Remote bez gwarancji dostarczenia i kolejności.
+
+	Do CIĄGŁYCH strumieni stanu, gdzie zgubiona klatka nic nie znaczy, bo
+	zaraz przyjdzie następna. Tańszy od zwykłego RemoteEvent i nie blokuje
+	kolejki, gdy sieć gracza przyśnie.
+
+	NIGDY do zdarzeń jednorazowych. Zgubione „złowiłeś jesiotra" to zepsuta
+	gra — takie rzeczy idą zwykłym, niezawodnym Remote'em.
+]]
+local function unreliable(name: string): UnreliableRemoteEvent
+	return resolve(name, "UnreliableRemoteEvent") :: UnreliableRemoteEvent
 end
 
 local Net = {}
@@ -79,6 +97,17 @@ Net.RequestCast = remote("RequestCast")
 
 --[[ () — "podcinam teraz". Serwer sam mierzy czas reakcji; klient nie podaje wyniku. ]]
 Net.RequestReel = remote("RequestReel")
+
+--[[
+	(reeling: boolean) — intencja holowania w trakcie walki.
+
+	Klient wysyła WYŁĄCZNIE „trzymam" / „puściłem", nigdy postępu ani
+	napięcia. Całą symulację prowadzi serwer, więc podrobienie tego Remote'a
+	daje najwyżej tyle, co szybkie klikanie myszą — czyli nic.
+
+	Wysyłane tylko przy ZMIANIE stanu, nie co klatkę.
+]]
+Net.RequestReeling = remote("RequestReeling")
 
 --[[ (rodId: string) — zakup wędki. Serwer sprawdza cenę, stan konta i posiadanie. ]]
 Net.RequestBuyRod = remote("RequestBuyRod")
@@ -118,8 +147,30 @@ Net.CastStarted = remote("CastStarted")
      inaczej klient wiedziałby, kiedy warto podciąć. ]]
 Net.BiteStarted = remote("BiteStarted")
 
+--[[
+	() — zacięcie udane, zaczyna się hol.
+
+	Nie wysyłamy ani gatunku, ani trudności. Gdybyśmy wysyłali, dałoby się
+	porzucać walki z tanimi rybami i holować wyłącznie opłacalne — a to
+	psuje całą ekonomię czasu. Napięcie i postęp wystarczą, żeby walkę
+	było czuć.
+]]
+Net.FightStarted = remote("FightStarted")
+
+--[[
+	(state: Types.FightState) — stan holu, 20 razy na sekundę.
+
+	UnreliableRemoteEvent: zgubiona klatka nie ma znaczenia, bo za 50 ms
+	przyjdzie następna, a klient i tak interpoluje paski. Wynik walki
+	NIE idzie tędy — leci niezawodnym `CastResolved`.
+]]
+Net.FightUpdate = unreliable("FightUpdate")
+
 --[[ (result: Types.CastResult) — koniec zarzucenia, z wynikiem. ]]
 Net.CastResolved = remote("CastResolved")
+
+--[[ (entries: { Types.LeaderboardEntry }) — odświeżony ranking. ]]
+Net.LeaderboardUpdated = remote("LeaderboardUpdated")
 
 --[[ (message: string, kind: Types.NotifyKind) — toast w UI. ]]
 Net.Notify = remote("Notify")

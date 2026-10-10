@@ -21,7 +21,7 @@ wam drugie miejsce do mergowania i zero korzyści.
 ### Nazwy gałęzi
 
 ```
-feat/   nowa funkcjonalność      feat/dzienne-zadania
+feat/   nowa funkcjonalność      feat/przyneta
 fix/    naprawa buga             fix/splawik-zostaje-po-smierci
 refac/  przebudowa bez zmiany zachowania
 chore/  narzędzia, CI, wersje    chore/rojo-7.7.2
@@ -47,7 +47,7 @@ git switch main
 git pull
 
 # 2. Nowa gałąź
-git switch -c feat/dzienne-zadania
+git switch -c feat/przyneta
 
 # 3. Pracuj. rojo serve trzymaj włączone.
 rojo serve
@@ -59,10 +59,10 @@ selene src
 
 # 5. Commit
 git add -A
-git commit -m "Dodaj dzienne zadania za złowienie 5 ryb"
+git commit -m "Dodaj przynety jako zuzywalny modyfikator szczescia"
 
 # 6. Push i PR
-git push -u origin feat/dzienne-zadania
+git push -u origin feat/przyneta
 gh pr create --fill
 ```
 
@@ -70,7 +70,7 @@ gh pr create --fill
 
 ```powershell
 git switch main; git pull
-git switch feat/dzienne-zadania
+git switch feat/przyneta
 git rebase main
 ```
 

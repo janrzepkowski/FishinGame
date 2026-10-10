@@ -18,6 +18,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Format = require(ReplicatedStorage.Shared.Util.Format)
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
+local RodModel = require(ReplicatedStorage.Shared.Util.RodModel)
 local Rods = require(ReplicatedStorage.Shared.Config.Rods)
 local Types = require(ReplicatedStorage.Shared.Types)
 
@@ -30,51 +31,39 @@ local ROD_ATTRIBUTE = "RodId"
 local RodService = {}
 
 --[[
-	Część wędki przyspawana do uchwytu.
+	Buduje wędkę jako Tool z brył opisanych w `shared/Util/RodModel`.
 
-	Części w Toolu MUSZĄ być odkotwiczone i przyspawane do Handle — kotwiczone
-	zostałyby w powietrzu, gdy gracz odejdzie. `WeldConstraint` zapamiętuje
-	przesunięcie z momentu utworzenia, więc najpierw ustawiamy CFrame,
-	dopiero potem spawamy. Handle stoi w punkcie zero, więc `offset` jest
-	od razu przesunięciem lokalnym.
+	Ta sama lista brył zasila podgląd w sklepie i ikonę na pasku, więc
+	wędka w ręce i wędka na obrazku NIE MOGĄ się rozjechać — bo to jest
+	dosłownie ten sam opis.
+
+	=========================================================================
+	CHWYT (Tool.Grip) — dlaczego wędka wychodziła zza pleców
+	=========================================================================
+	Roblox spawa Handle z ręką weldem, w którym `C1 = Tool.Grip`, czyli:
+
+	    Handle.CFrame = Ręka.CFrame * C0 * Grip:Inverse()
+
+	Dla domyślnego `C0` ręki obrót o -90° wokół X odwzorowuje lokalne -Z
+	rączki na kierunek WYCHODZĄCY Z DŁONI. Kij zbudowany wzdłuż -Z
+	(patrz `RodModel`) celuje więc przed gracza i wszystko się zgadza.
+
+	Błąd polegał na `GripForward = (0, 0, 1)`. `GripForward` jest
+	z definicji LookVectorem chwytu, a LookVector w Robloxie to **-Z** —
+	podanie (0,0,1) obracało chwyt o 180° wokół Y, przez co -Z rączki
+	mapowało się w stronę barku. Stąd wędka za plecami.
+
+	Dlatego NIE ustawiamy `GripForward`/`GripUp`/`GripRight` osobno: są
+	wyliczane z macierzy `Grip` i pojedynczo potrafią zostawić ją niespójną.
+	Jeden kompletny CFrame i tyle.
+
+	Chwyt jest CZYSTYM PRZESUNIĘCIEM, bez obrotu. Pochylenie wędki w spoczynku
+	robi ramię (`CastAnimation.HOLD_ANGLE`), bo prawdziwy wędkarz też unosi
+	kij ramieniem, nie nadgarstkiem. Mniej stałych tutaj = mniej rzeczy,
+	które mogą być źle ustawione.
 ]]
-local function weldedPart(
-	handle: BasePart,
-	name: string,
-	size: Vector3,
-	offset: CFrame,
-	color: Color3,
-	material: Enum.Material
-): Part
-	local part = Instance.new("Part")
-	part.Name = name
-	part.Size = size
-	part.CFrame = offset
-	part.Color = color
-	part.Material = material
-	part.Anchored = false
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	-- Bez tego kilka części wędki zaczyna ciągnąć postać w dół.
-	part.Massless = true
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
-	part.Parent = handle.Parent
+local GRIP_OFFSET = Vector3.new(0, 0, 0.45)
 
-	local weld = Instance.new("WeldConstraint")
-	weld.Part0 = handle
-	weld.Part1 = part
-	weld.Parent = part
-
-	return part
-end
-
---[[
-	Wędka z części zamiast jednego patyka: rączka, kij, szczytówka,
-	kołowrotek i przelotki. Kij leży wzdłuż lokalnego -Z, a na samym czubku
-	siedzi Attachment „Tip", od którego klient rysuje żyłkę do spławika.
-]]
 local function buildRod(definition: RodDefinition): Tool
 	local tool = Instance.new("Tool")
 	tool.Name = definition.displayName
@@ -82,81 +71,66 @@ local function buildRod(definition: RodDefinition): Tool
 	tool.CanBeDropped = false
 	tool.ToolTip = `Szczęście x{definition.luck} · okno {Format.seconds(definition.reelWindow)}`
 	tool:SetAttribute(ROD_ATTRIBUTE, definition.id)
-	-- Dłoń trzyma przy końcu rączki, a nie w połowie kija.
-	tool.GripPos = Vector3.new(0, 0, 0.25)
-	tool.GripForward = Vector3.new(0, 0, 1)
-	tool.GripUp = Vector3.new(0, 1, 0)
+	tool.Grip = CFrame.new(GRIP_OFFSET)
 
 	local handle = Instance.new("Part")
 	handle.Name = "Handle"
-	handle.Size = Vector3.new(0.34, 0.34, 1.3)
-	handle.CFrame = CFrame.new()
-	handle.Color = Color3.fromRGB(78, 56, 38)
+	handle.Size = RodModel.handleSize()
+	handle.CFrame = CFrame.identity
+	handle.Color = RodModel.handleColor()
 	handle.Material = Enum.Material.Wood
 	handle.Anchored = false
 	handle.CanCollide = false
+	-- Bez tego kilka części wędki zaczyna ciągnąć postać w dół.
 	handle.Massless = true
 	handle.TopSurface = Enum.SurfaceType.Smooth
 	handle.BottomSurface = Enum.SurfaceType.Smooth
 	handle.Parent = tool
 
-	weldedPart(
-		handle,
-		"Shaft",
-		Vector3.new(0.17, 0.17, 4.2),
-		CFrame.new(0, 0, -2.75),
-		definition.color,
-		Enum.Material.Wood
-	)
+	local tipSection: BasePart? = nil
 
-	local tip = weldedPart(
-		handle,
-		"TipSection",
-		Vector3.new(0.09, 0.09, 1.7),
-		CFrame.new(0, 0, -5.7),
-		definition.color,
-		Enum.Material.Wood
-	)
+	for _, piece in RodModel.pieces(definition) do
+		local part = Instance.new("Part")
+		part.Name = piece.name
+		part.Size = piece.size
+		-- CFrame USTAWIAMY PRZED spawaniem: WeldConstraint zapamiętuje
+		-- przesunięcie z momentu utworzenia, więc kolejność ma znaczenie.
+		part.CFrame = piece.cframe
+		part.Color = piece.color
+		part.Material = piece.material
+		part.Anchored = false
+		part.CanCollide = false
+		part.CanQuery = false
+		part.CanTouch = false
+		part.Massless = true
+		part.TopSurface = Enum.SurfaceType.Smooth
+		part.BottomSurface = Enum.SurfaceType.Smooth
+		if piece.shape then
+			part.Shape = piece.shape
+		end
+		part.Parent = tool
 
-	-- Kołowrotek: walec leży wzdłuż osi X, więc domyślna orientacja od razu
-	-- daje bęben ustawiony w poprzek kija. Nic nie trzeba obracać.
-	local reel = weldedPart(
-		handle,
-		"Reel",
-		Vector3.new(0.5, 0.78, 0.78),
-		CFrame.new(0, -0.36, -0.95),
-		Color3.fromRGB(196, 200, 208),
-		Enum.Material.Metal
-	)
-	reel.Shape = Enum.PartType.Cylinder
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = handle
+		weld.Part1 = part
+		weld.Parent = part
 
-	weldedPart(
-		handle,
-		"ReelKnob",
-		Vector3.new(0.14, 0.14, 0.34),
-		CFrame.new(0.3, -0.36, -0.95),
-		Color3.fromRGB(44, 48, 56),
-		Enum.Material.SmoothPlastic
-	)
-
-	-- Przelotki — drobiazg, ale to one sprawiają, że kij czyta się jako
-	-- wędka, a nie jako kij.
-	for index = 1, 3 do
-		weldedPart(
-			handle,
-			`Guide{index}`,
-			Vector3.new(0.22, 0.22, 0.07),
-			CFrame.new(0, -0.09, -1.5 - index * 1.45),
-			Color3.fromRGB(212, 216, 222),
-			Enum.Material.Metal
-		)
+		if piece.name == "TipSection" then
+			tipSection = part
+		end
 	end
 
+	-- Attachment „Tip" na czubku — stąd klient ciągnie żyłkę do spławika.
 	local tipAttachment = Instance.new("Attachment")
 	tipAttachment.Name = "Tip"
-	-- Lokalnie względem szczytówki: jej połowa długości w stronę czubka.
-	tipAttachment.Position = Vector3.new(0, 0, -0.85)
-	tipAttachment.Parent = tip
+	if tipSection then
+		-- Lokalnie względem szczytówki.
+		tipAttachment.Position = Vector3.new(0, 0, -tipSection.Size.Z / 2)
+		tipAttachment.Parent = tipSection
+	else
+		tipAttachment.Position = RodModel.tipOffset()
+		tipAttachment.Parent = handle
+	end
 
 	return tool
 end

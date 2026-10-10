@@ -21,6 +21,7 @@
 
 local t = require("./harness")
 
+local Fight = require("../src/shared/Util/Fight")
 local Format = require("../src/shared/Util/Format")
 local Lake = require("../src/shared/Config/Lake")
 local Rng = require("../src/shared/Util/Rng")
@@ -144,5 +145,88 @@ t.equal("sekundy z jednym miejscem", Format.seconds(1.26), "1,3 s")
 -- Ten test istnieje po to, żeby ktoś „nie naprawił" tego przez pomyłkę.
 t.equal("dokladna polowka idzie do parzystej", Format.seconds(1.25), "1,2 s")
 t.equal("metry bez czesci dziesietnych", Format.meters(11.6), "12 m")
+
+-- ---------------------------------------------------------------------------
+t.suite("Fight — hol")
+
+--[[
+	Strojenie z GameConfig. Powtórzone tutaj CELOWO: test ma pilnować
+	konkretnych liczb, a nie tego, że funkcja zgadza się sama ze sobą.
+	Zmiana balansu w configu ma ZŁAMAĆ ten test i zmusić do świadomego
+	przeliczenia, czy walka nadal jest wykonalna.
+]]
+local function params(strength: number, stamina: number, lineStrength: number)
+	return {
+		strength = strength,
+		stamina = stamina,
+		lineStrength = lineStrength,
+		progressGain = 0.42,
+		tensionGain = 0.22,
+		surgeTension = 3.0,
+		surgeProgress = 0.35,
+		slackLoss = 0.12,
+		tensionRecovery = 0.5,
+	}
+end
+
+-- Najsłabsza ryba (płoć) i najsilniejsza (Złota Rybka) na startowej wędce.
+local weakest = params(0.55, 0.5, 1.0)
+local fiercest = params(1.9, 0.55, 1.0)
+local endurance = params(1.05, 1.75, 1.0) -- sum
+local tournament = params(1.9, 0.55, 1.8) -- Złota Rybka na wędce turniejowej
+
+local idle = { progress = 0.5, tension = 0.5 }
+
+t.isTrue("holowanie zwieksza postep", Fight.step(idle, weakest, 1, true, false).progress > 0.5)
+t.isTrue("holowanie zwieksza napiecie", Fight.step(idle, weakest, 1, true, false).tension > 0.5)
+t.isTrue("puszczenie zmniejsza postep", Fight.step(idle, weakest, 1, false, false).progress < 0.5)
+t.isTrue("puszczenie zmniejsza napiecie", Fight.step(idle, weakest, 1, false, false).tension < 0.5)
+
+t.isTrue(
+	"szarpniecie przyspiesza napiecie",
+	Fight.step(idle, weakest, 1, true, true).tension
+		> Fight.step(idle, weakest, 1, true, false).tension
+)
+t.isTrue(
+	"szarpniecie spowalnia postep",
+	Fight.step(idle, weakest, 1, true, true).progress
+		< Fight.step(idle, weakest, 1, true, false).progress
+)
+
+t.near(
+	"postep nie schodzi ponizej zera",
+	Fight.step({ progress = 0, tension = 0 }, weakest, 10, false, false).progress,
+	0
+)
+t.near(
+	"napiecie nie schodzi ponizej zera",
+	Fight.step({ progress = 0, tension = 0 }, weakest, 10, false, false).tension,
+	0
+)
+t.near(
+	"postep nie przekracza jedynki",
+	Fight.step({ progress = 1, tension = 0 }, weakest, 10, true, false).progress,
+	1
+)
+
+--[[
+	NAJWAŻNIEJSZE TESTY BALANSU.
+
+	Gra jest grywalna tylko wtedy, gdy okno na reakcję jest dłuższe niż
+	ludzki czas reakcji (~0,25 s), a walka krótsza niż cierpliwość gracza.
+	Obie granice łatwo przekroczyć jedną zmianą w configu i żadna z nich
+	nie objawia się jako błąd — tylko jako „gra jest zła".
+]]
+t.isTrue(
+	"najsilniejsza ryba daje czas na reakcje przy szarpnieciu",
+	Fight.timeToSnap(fiercest, true) > 0.45
+)
+t.isTrue("najslabsza ryba wybacza dlugie holowanie", Fight.timeToSnap(weakest, true) > 2.0)
+t.isTrue(
+	"mocniejsza zylka realnie wydluza czas do zerwania",
+	Fight.timeToSnap(tournament, true) > Fight.timeToSnap(fiercest, true) * 1.5
+)
+t.isTrue("najdluzsza walka miesci sie w 10 s czystego holu", Fight.minimumDuration(endurance) < 10)
+t.isTrue("najkrotsza walka trwa dluzej niz sekunde", Fight.minimumDuration(weakest) > 1)
 
 t.finish()
