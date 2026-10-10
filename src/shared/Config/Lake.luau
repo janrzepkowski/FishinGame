@@ -19,7 +19,18 @@ local Lake = {}
 -- więc brzeg schodzi płasko do wody.
 Lake.SURFACE_Y = 0
 
-Lake.CENTER = Vector3.new(0, 0, -140)
+-- Środek jako dwie liczby, nie Vector3 — celowo.
+--
+-- `Vector3` jest typem Robloxa i istnieje tylko wewnątrz silnika. Gdyby
+-- stał tutaj na poziomie modułu, tego pliku nie dałoby się wczytać poza grą,
+-- a więc nie dałoby się napisać do niego testów jednostkowych. Cała reszta
+-- modułu odwołuje się do `position.X` / `position.Z`, czyli zwykłych pól —
+-- test może podać `{ X = 0, Z = -140 }` i nie potrzebuje silnika.
+--
+-- Ta matematyka raz już wygenerowała bagno zamiast jeziora. Jest warta tego,
+-- żeby dało się ją sprawdzić na CI w 50 ms zamiast w Studio po pięciu minutach.
+Lake.CENTER_X = 0
+Lake.CENTER_Z = -140
 -- Połowa boku lustra wody: zbiornik ma 200 x 200 studów.
 Lake.HALF_SIZE = 100
 
@@ -70,8 +81,8 @@ Lake.MAX_DEPTH = 32
 	dałoby w narożnikach głębokość niezgodną z tym, co widać.
 ]]
 function Lake.edgeDistance(position: Vector3): number
-	local dx = math.abs(position.X - Lake.CENTER.X)
-	local dz = math.abs(position.Z - Lake.CENTER.Z)
+	local dx = math.abs(position.X - Lake.CENTER_X)
+	local dz = math.abs(position.Z - Lake.CENTER_Z)
 	return Lake.HALF_SIZE - math.max(dx, dz)
 end
 
@@ -113,9 +124,9 @@ end
 function Lake.clampToWater(position: Vector3, margin: number): Vector3
 	local limit = Lake.HALF_SIZE - math.max(margin, 0)
 	return Vector3.new(
-		math.clamp(position.X, Lake.CENTER.X - limit, Lake.CENTER.X + limit),
+		math.clamp(position.X, Lake.CENTER_X - limit, Lake.CENTER_X + limit),
 		Lake.SURFACE_Y,
-		math.clamp(position.Z, Lake.CENTER.Z - limit, Lake.CENTER.Z + limit)
+		math.clamp(position.Z, Lake.CENTER_Z - limit, Lake.CENTER_Z + limit)
 	)
 end
 

@@ -22,7 +22,7 @@
 	niespójnie: wypełnienia materiałem stałym pomijają woksele z wodą,
 	a wypełnienie wodą na istniejącym terenie potrafi nie zrobić nic.
 
-	Ten plik przeszedł przez dwie wersje opartą na FillBlock i obie dały
+	Ten plik przeszedł przez dwie wersje oparte na FillBlock i obie dały
 	to samo: piaszczysta misa buduje się poprawnie, wody nie ma wcale.
 	Objaw dla gracza — chodzenie po dnie i „bagno".
 
@@ -59,6 +59,7 @@ local BEACH_MARGIN = 12
 -- Dno misy. Musi być poniżej najgłębszej półki, inaczej najgłębsze
 -- wypełnienie wody nie miałoby pod sobą piasku.
 local BED_BOTTOM = -44
+
 -- Rozmiar woksela terenu. Wszystkie odczyty i wypełnienia są do niego
 -- wyrównane — to nie jest liczba do zmieniania.
 local VOXEL = 4
@@ -75,7 +76,7 @@ end
 ]]
 local function lakeRegion(): Region3
 	local half = LakeConfig.HALF_SIZE + BEACH_MARGIN
-	local cx, cz = LakeConfig.CENTER.X, LakeConfig.CENTER.Z
+	local cx, cz = LakeConfig.CENTER_X, LakeConfig.CENTER_Z
 
 	return Region3.new(
 		Vector3.new(cx - half, BED_BOTTOM, cz - half),
@@ -222,7 +223,7 @@ end
 	zobaczył, co właściwie zbudował — zanim zacznie szukać winy w kodzie ryb.
 ]]
 local function reportDepths()
-	local cx, cz = LakeConfig.CENTER.X, LakeConfig.CENTER.Z
+	local cx, cz = LakeConfig.CENTER_X, LakeConfig.CENTER_Z
 	local half = LakeConfig.HALF_SIZE
 
 	local probes = {
@@ -251,8 +252,8 @@ local function reportDepths()
 	if mismatched then
 		warn(
 			"[Ground] teren NIE zgadza sie z shared/Config/Lake.\n"
-				.. "  Wode WYCINAMY w gotowym dnie, od najplytszej polki do najglebszej.\n"
-				.. "  Odwrotna kolejnosc albo zasypywanie piaskiem daje bagno."
+				.. "  Wode WYCINAMY w gotowym dnie przez WriteVoxelChannels.\n"
+				.. "  Sprawdz, czy ktos nie wrocil do FillBlock z Enum.Material.Water."
 		)
 	end
 end

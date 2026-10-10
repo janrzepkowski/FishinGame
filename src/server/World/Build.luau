@@ -23,6 +23,25 @@
 
 local Build = {}
 
+--[[
+	Skala świata, wyprowadzona z postaci gracza.
+
+	Domyślna postać R15 ma 5,5 studa wysokości (blokowy rig R6 — 5,1).
+	Przyjmujemy, że to człowiek o wzroście 1,8 m, co daje ~3,06 studa na metr.
+
+	Wszystkie wymiary budynków liczymy z `METER`, a nie dobieramy na oko.
+	Budynek dobrany „żeby ładnie wyglądał" w widoku z góry okazuje się
+	karłowaty w sekundzie, w której stanie obok niego gracz — a to jedyny
+	widok, który kogokolwiek obchodzi.
+]]
+Build.HUMAN_HEIGHT = 5.5
+Build.METER = Build.HUMAN_HEIGHT / 1.8
+
+--[[ Wymiar w metrach, przeliczony na study. ]]
+function Build.m(meters: number): number
+	return meters * Build.METER
+end
+
 local function applyDefaults(part: BasePart)
 	part.Anchored = true
 	part.CanCollide = false

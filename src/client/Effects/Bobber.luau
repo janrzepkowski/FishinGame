@@ -9,10 +9,14 @@
 	przeszkadzać, efekt trzeba przenieść na serwer — ale wtedy płacimy
 	replikacją za każdy rzut każdego gracza.
 
-	Punkt zarzucenia liczymy `Spatial.castTarget` — DOKŁADNIE tą samą funkcją,
-	której używa serwer do sprawdzenia głębokości. Gdyby klient liczył po
-	swojemu, spławik lądowałby gdzie indziej niż miejsce, z którego naprawdę
-	bierze ryba.
+	Punkt zarzucenia liczymy `Spatial.castTarget` + `Lake.clampToWater` —
+	DOKŁADNIE tymi samymi funkcjami, których serwer używa do sprawdzenia
+	głębokości. Gdyby klient liczył po swojemu, spławik lądowałby gdzie
+	indziej niż miejsce, z którego naprawdę bierze ryba.
+
+	Spławik LECI, a nie pojawia się na miejscu. Teleportacja na 22 study
+	była największym pojedynczym powodem, dla którego zarzucanie wyglądało
+	tanio — ruch po paraboli kosztuje kilkanaście linii i zmienia wszystko.
 ]]
 
 local Players = game:GetService("Players")
@@ -28,13 +32,18 @@ local Spatial = require(Shared.Util.Spatial)
 local Bobber = {}
 
 local CONTAINER_NAME = "ClientEffects"
+local FLIGHT_TIME = 0.55
+local REEL_TIME = 0.32
+-- Wysokość łuku jako ułamek dystansu. Przy 0 spławik leci płasko jak
+-- pocisk, przy 0.4 wygląda jak rzut granatem.
+local ARC_RATIO = 0.17
 
 local player = Players.LocalPlayer
 
 local container: Folder? = nil
 local bobber: BasePart? = nil
 local beam: Beam? = nil
-local floatConnection: RBXScriptConnection? = nil
+local motion: RBXScriptConnection? = nil
 local restY = LakeConfig.SURFACE_Y
 
 local function getContainer(): Folder
@@ -84,26 +93,27 @@ local function ripple(position: Vector3, maxDiameter: number, life: number)
 	ring.Transparency = 0.45
 	ring.Parent = getContainer()
 
-	local info = TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-	TweenService:Create(ring, info, {
-		Size = Vector3.new(0.05, maxDiameter, maxDiameter),
-		Transparency = 1,
-	}):Play()
+	TweenService
+		:Create(ring, TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Size = Vector3.new(0.05, maxDiameter, maxDiameter),
+			Transparency = 1,
+		})
+		:Play()
 
 	task.delay(life + 0.05, function()
 		ring:Destroy()
 	end)
 end
 
-local function stopFloating()
-	if floatConnection then
-		floatConnection:Disconnect()
-		floatConnection = nil
+local function stopMotion()
+	if motion then
+		motion:Disconnect()
+		motion = nil
 	end
 end
 
 function Bobber.clear()
-	stopFloating()
+	stopMotion()
 
 	if beam then
 		beam:Destroy()
@@ -115,66 +125,58 @@ function Bobber.clear()
 	end
 end
 
---[[
-	Rzuca spławik na wodę przed graczem.
-
-	Nic nie robi, gdy nie ma postaci albo wędki w ręce — to nie są błędy,
-	tylko normalne stany (respawn, pierwsza klatka po wejściu).
-]]
-function Bobber.cast()
-	Bobber.clear()
-
-	local root = Spatial.characterRoot(player)
-	if not root then
-		return
-	end
-
-	local target = Spatial.castTarget(root.CFrame, GameConfig.CAST_DISTANCE)
-	local landing = LakeConfig.clampToWater(target, GameConfig.CAST_SHORE_MARGIN)
-	restY = landing.Y + 0.2
-
+local function createBobber(origin: Vector3): BasePart
 	local float = Instance.new("Part")
 	float.Name = "Bobber"
 	float.Shape = Enum.PartType.Ball
-	float.Size = Vector3.new(0.65, 0.65, 0.65)
+	float.Size = Vector3.new(0.6, 0.6, 0.6)
 	float.Color = Color3.fromRGB(230, 72, 72)
 	float.Material = Enum.Material.SmoothPlastic
 	float.Anchored = true
 	float.CanCollide = false
 	float.CanQuery = false
 	float.CanTouch = false
-	float.Position = Vector3.new(landing.X, restY, landing.Z)
+	float.Position = origin
 	float.Parent = getContainer()
 
-	local floatAttachment = Instance.new("Attachment")
-	floatAttachment.Name = "Line"
-	floatAttachment.Parent = float
+	local attachment = Instance.new("Attachment")
+	attachment.Name = "Line"
+	-- Oś attachmentu wyznacza kierunek, w którym `CurveSize` odciąga punkt
+	-- kontrolny Béziera. Ustawiona w górę + ujemny CurveSize = punkt pod
+	-- spławikiem, czyli żyłka zwisa, zamiast być napiętą kreską.
+	attachment.Axis = Vector3.new(0, 1, 0)
+	attachment.Parent = float
 
 	local tip = rodTip()
 	if tip then
 		local line = Instance.new("Beam")
 		line.Name = "Line"
 		line.Attachment0 = tip
-		line.Attachment1 = floatAttachment
-		line.Width0 = 0.035
-		line.Width1 = 0.035
-		line.Color = ColorSequence.new(Color3.fromRGB(232, 238, 246))
-		line.Transparency = NumberSequence.new(0.2)
+		line.Attachment1 = attachment
+		line.Width0 = 0.03
+		line.Width1 = 0.03
+		line.Segments = 12
+		line.Color = ColorSequence.new(Color3.fromRGB(236, 240, 248))
+		line.Transparency = NumberSequence.new(0.25)
 		line.FaceCamera = true
 		line.Parent = float
 		beam = line
 	end
 
-	bobber = float
-	ripple(float.Position, 7, 1.1)
+	return float
+end
 
-	-- Kołysanie na fali. Amplituda jest celowo mała (3 cm): spławik ma
-	-- „żyć", ale gracz musi odróżnić kołysanie od szarpnięcia przy braniu.
+--[[ Delikatne kołysanie na fali po wylądowaniu. Amplituda celowo mała
+     (3 cm): spławik ma „żyć", ale gracz musi odróżnić kołysanie
+     od szarpnięcia przy braniu. ]]
+local function startFloating()
+	stopMotion()
+
 	local phase = math.random() * math.pi * 2
-	floatConnection = RunService.RenderStepped:Connect(function()
+	motion = RunService.RenderStepped:Connect(function()
 		local part = bobber
 		if not part then
-			stopFloating()
+			stopMotion()
 			return
 		end
 		local t = os.clock() * 1.8 + phase
@@ -182,7 +184,71 @@ function Bobber.cast()
 	end)
 end
 
---[[ Szarpnięcie w momencie brania — poza paskiem UI to jedyna informacja
+--[[
+	Wypuszcza spławik z czubka wędki i prowadzi go po paraboli na wodę.
+
+	Woła się to w momencie puszczenia żyłki przez `CastAnimation`, a nie
+	na starcie zamachu — inaczej spławik wyprzedzałby ruch ręki.
+
+	Nic nie robi bez postaci; to normalny stan (respawn), nie błąd.
+]]
+function Bobber.launch()
+	Bobber.clear()
+
+	local root = Spatial.characterRoot(player)
+	if not root then
+		return
+	end
+
+	local landing = LakeConfig.clampToWater(
+		Spatial.castTarget(root.CFrame, GameConfig.CAST_DISTANCE),
+		GameConfig.CAST_SHORE_MARGIN
+	)
+	restY = landing.Y + 0.2
+	local target = Vector3.new(landing.X, restY, landing.Z)
+
+	local tip = rodTip()
+	local origin = if tip then tip.WorldPosition else root.Position + Vector3.new(0, 3, 0)
+
+	local float = createBobber(origin)
+	bobber = float
+
+	local arc = (target - origin).Magnitude * ARC_RATIO
+	local startedAt = os.clock()
+
+	motion = RunService.RenderStepped:Connect(function()
+		local part = bobber
+		if not part then
+			stopMotion()
+			return
+		end
+
+		local t = (os.clock() - startedAt) / FLIGHT_TIME
+
+		if t >= 1 then
+			part.Position = target
+
+			-- Dopiero po wylądowaniu puszczamy żyłkę luźno. W locie jest
+			-- napięta, bo spławik ciągnie ją za sobą.
+			local line = beam
+			if line then
+				line.CurveSize1 = -(target - origin).Magnitude * 0.12
+			end
+
+			ripple(target, 7, 1.1)
+			startFloating()
+			return
+		end
+
+		local flat = origin:Lerp(target, t)
+		-- Parabola o wierzchołku w połowie lotu: 4t(1-t) daje 0 na końcach
+		-- i 1 w środku, bez żadnej trygonometrii.
+		local height = arc * 4 * t * (1 - t)
+		part.Position = Vector3.new(flat.X, flat.Y + height, flat.Z)
+	end)
+end
+
+--[[ Szarpnięcie w momencie brania. Poza paskiem UI to jedyna informacja
      „teraz!", a przy łowieniu wzrok jest na wodzie, nie na interfejsie. ]]
 function Bobber.dip()
 	local float = bobber
@@ -190,14 +256,19 @@ function Bobber.dip()
 		return
 	end
 
-	stopFloating()
+	stopMotion()
 
-	local sunken = Vector3.new(float.Position.X, restY - 0.5, float.Position.Z)
+	local sunken = Vector3.new(float.Position.X, restY - 0.55, float.Position.Z)
 	TweenService:Create(
 		float,
 		TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, -1, true),
 		{ Position = sunken }
 	):Play()
+
+	-- Żyłka napina się przy braniu — sag znika.
+	if beam then
+		beam.CurveSize1 = 0
+	end
 
 	ripple(float.Position, 5, 0.7)
 	task.delay(0.35, function()
@@ -235,17 +306,58 @@ function Bobber.splash()
 		local angle = (index / 8) * math.pi * 2
 		local away = Vector3.new(math.cos(angle), 0, math.sin(angle)) * math.random(2, 4)
 
-		local info = TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
-		TweenService:Create(drop, info, {
-			Position = origin + away + Vector3.new(0, 2.2, 0),
-			Transparency = 1,
-			Size = Vector3.new(0.05, 0.05, 0.05),
-		}):Play()
+		TweenService
+			:Create(drop, TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Position = origin + away + Vector3.new(0, 2.2, 0),
+				Transparency = 1,
+				Size = Vector3.new(0.05, 0.05, 0.05),
+			})
+			:Play()
 
 		task.delay(0.55, function()
 			drop:Destroy()
 		end)
 	end
+end
+
+--[[
+	Zwija spławik z powrotem do czubka wędki i sprząta.
+
+	Bez tego spławik po prostu znikał — a zniknięcie czyta się jak błąd,
+	nie jak koniec akcji.
+]]
+function Bobber.reelIn()
+	local float = bobber
+	if not float then
+		Bobber.clear()
+		return
+	end
+
+	stopMotion()
+
+	local origin = float.Position
+	local startedAt = os.clock()
+
+	motion = RunService.RenderStepped:Connect(function()
+		local part = bobber
+		if not part then
+			stopMotion()
+			return
+		end
+
+		local tip = rodTip()
+		local destination = if tip then tip.WorldPosition else origin + Vector3.new(0, 4, 0)
+		local t = (os.clock() - startedAt) / REEL_TIME
+
+		if t >= 1 then
+			Bobber.clear()
+			return
+		end
+
+		-- Czubek wędki rusza się razem z postacią, więc cel liczymy
+		-- w każdej klatce, a nie raz na starcie.
+		part.Position = origin:Lerp(destination, t * t)
+	end)
 end
 
 return Bobber

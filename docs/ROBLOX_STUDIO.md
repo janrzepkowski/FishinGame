@@ -144,19 +144,67 @@ Test jednoosobowy nie wyłapie błędu, w którym stan jest globalny.
 Repo i opublikowana gra to **dwie osobne rzeczy**. `git push` nie publikuje
 niczego, a `git revert` nie cofa publikacji.
 
-1. `rojo build default.project.json --output build/FishinGame.rbxl`
-2. Otwórz `build/FishinGame.rbxl` w Studio
-3. File → Publish to Roblox As… → wybierz istniejące miejsce (albo nowe przy pierwszym razie)
+### Dwa doświadczenia: DEV i PROD
 
-Kto publikuje: **jedna osoba**, po merge'u do `main`. Dwie osoby publikujące
-z własnych gałęzi to gwarantowany bałagan w tym, co właściwie jest na produkcji.
+| | DEV | PROD |
+|---|---|---|
+| Prywatność | Private | **Public** |
+| Kto wchodzi | tylko twórcy | cały zespół i gracze |
+| Po co | testy, eksperymenty | wersja, którą się pokazuje |
 
-Roblox trzyma historię wersji: Creator Dashboard → twoja Experience → **Versions**.
+**DataStore'y są przypisane do doświadczenia (universe), nie do pliku miejsca.**
+To znaczy, że osobne DEV i PROD mają z automatu osobne dane graczy i NIE trzeba
+zmieniać `DATASTORE_NAME`. Zmiana nazwy jest potrzebna tylko wtedy, gdy ktoś
+testuje bezpośrednio na doświadczeniu produkcyjnym — czego nie robimy.
+
+### Wypuszczenie nowej wersji
+
+```powershell
+rojo build default.project.json --output build/FishinGame.rbxl
+```
+
+1. Otwórz `build/FishinGame.rbxl` w Studio (Plik → Otwórz z pliku)
+2. **Plik → Opublikuj w Roblox jako…** (Publish to Roblox As…)
+3. Wybierz **istniejące** doświadczenie z listy, nie „Create new" —
+   nowe utworzyłoby trzecią grę z osobnym linkiem i osobnymi danymi
+4. Potwierdź nadpisanie
+
+### Udostępnienie zespołowi nietechnicznemu
+
+Creator Dashboard → twoja Experience → **Settings → Permissions**
+→ Playability: **Public**.
+
+Dopóki doświadczenie jest Private, wejdą do niego wyłącznie osoby
+z uprawnieniami do edycji. Zwykły gracz zobaczy „this experience is
+not available".
+
+Po ustawieniu na Public wyślij im po prostu link:
+
+```
+https://www.roblox.com/games/<PLACE_ID>
+```
+
+`PLACE_ID` znajdziesz w adresie strony doświadczenia w Creator Dashboard.
+Klikają, wchodzą, grają w kliencie Robloxa — bez Studio, bez gita,
+bez niczego.
+
+### Gracze nie widzą zmian po publikacji
+
+To nie jest błąd. Serwery, które już działają, mieszczą starą wersję
+i migrują na nową stopniowo przez kilka–kilkanaście minut. Żeby wymusić
+natychmiast: Creator Dashboard → Experience → **Shut Down All Servers**.
+
+### Kto publikuje
+
+**Jedna osoba**, po merge'u do `main`. Dwie osoby publikujące z własnych
+gałęzi to gwarantowany bałagan w tym, co właściwie jest na produkcji.
+
+Roblox trzyma historię wersji: Creator Dashboard → Experience → **Versions**.
 Da się wrócić do poprzedniej, gdy coś wyjdzie krzywo.
 
-Alternatywa na później, gdy publikacja zacznie się zdarzać często: `rojo upload`
-z Open Cloud API key i `rbxcloud` w CI. Nie na tym etapie — ręczne publikowanie
-raz na kilka dni jest tańsze niż utrzymywanie pipeline'u.
+Alternatywa na później, gdy publikacja zacznie się zdarzać często: Open Cloud
+API key i `rbxcloud` w CI. Nie na tym etapie — ręczne publikowanie raz na kilka
+dni jest tańsze niż utrzymywanie pipeline'u.
 
 ## Gdy coś nie działa
 

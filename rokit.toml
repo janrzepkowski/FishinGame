@@ -20,3 +20,6 @@ stylua = "JohnnyMorganz/StyLua@2.5.2"
 selene = "Kampfkarren/selene@0.32.0"
 wally = "UpliftGames/wally@0.3.2"
 luau-lsp = "JohnnyMorganz/luau-lsp@1.70.1"
+# Samodzielny interpreter Luau — uruchamia testy jednostkowe z tests/
+# bez Robloxa i bez Studio. Patrz tests/harness.luau.
+luau = "luau-lang/luau@0.709.0"

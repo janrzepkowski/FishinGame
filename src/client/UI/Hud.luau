@@ -136,10 +136,8 @@ function Hud.mount(parent: Instance)
 	root = Theme.panel(
 		{
 			Name = "Hud",
-			AnchorPoint = Vector2.new(0, 0),
 			Position = UDim2.fromOffset(Theme.SPACE.lg, Theme.SPACE.lg),
 			Size = UDim2.fromOffset(230, 150),
-			AutomaticSize = Enum.AutomaticSize.Y,
 			BackgroundTransparency = 0.08,
 			Parent = parent,
 		},
@@ -153,21 +151,23 @@ function Hud.mount(parent: Instance)
 		depth
 	)
 
-	-- Na telefonie panel idzie wyżej i węziej: kciuk trzyma dół ekranu,
-	-- a szeroka karta zasłoniłaby wodę w kluczowym momencie podcięcia.
+	-- Wysokość jest STAŁA, wyliczona z `Theme.HUD_BAND`, a nie automatyczna.
+	-- Pod HUD-em stoją toasty i nie mogą podskakiwać za każdym razem, gdy
+	-- pojawia się wskaźnik głębokości — czyli przy każdym zarzuceniu.
+	--
+	-- Na telefonie panel jest węższy: kciuk trzyma dół ekranu, a szeroka
+	-- karta zasłoniłaby wodę w kluczowym momencie podcięcia.
 	Theme.onLayout(function(device: Theme.Device)
 		local panel = root
 		if not panel then
 			return
 		end
 
-		if device == "Phone" then
-			panel.Size = UDim2.fromOffset(182, 130)
-			panel.Position = UDim2.fromOffset(Theme.SPACE.sm, Theme.SPACE.sm)
-		else
-			panel.Size = UDim2.fromOffset(230, 150)
-			panel.Position = UDim2.fromOffset(Theme.SPACE.lg, Theme.SPACE.lg)
-		end
+		local margin = if device == "Phone" then Theme.SPACE.sm else Theme.SPACE.lg
+		local width = if device == "Phone" then 182 else 230
+
+		panel.Position = UDim2.fromOffset(margin, margin)
+		panel.Size = UDim2.fromOffset(width, Theme.HUD_BAND[device] - margin * 2)
 	end)
 
 	RunService.RenderStepped:Connect(function(delta: number)

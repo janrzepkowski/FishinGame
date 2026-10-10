@@ -11,9 +11,10 @@ Narzędzia są przypięte w `rokit.toml`. Po `rokit install` wszystkie są na PA
 rojo serve                                              # sync do Roblox Studio (port 34872)
 rojo build default.project.json -o build/FishinGame.rbxl # zbuduj plik miejsca
 rojo sourcemap default.project.json -o sourcemap.json    # mapa dla luau-lsp
-stylua src                                              # sformatuj
-stylua --check src                                      # sprawdź formatowanie (to robi CI)
-selene src                                              # lint
+luau tests/run.luau                                     # testy jednostkowe (bez Robloxa, <1 s)
+stylua src tests                                        # sformatuj
+stylua --check src tests                                # sprawdź formatowanie (to robi CI)
+selene src tests                                        # lint
 luau-lsp analyze --sourcemap=sourcemap.json --definitions=globalTypes.d.luau --platform=roblox src
 ```
 
@@ -86,6 +87,16 @@ Te pliki nie zawierają logiki gry — tylko kolejność. Nie dokładaj do nich 
    rozmiary tekstu z `TEXT`. Panele montujemy w korzeniu z `Theme.mountRoot`,
    nie wprost w ScreenGui — inaczej ominie je skalowanie. Wariant układu
    na telefon dodaje się przez `Theme.onLayout`.
+
+9. **Czysta matematyka w `shared/` ma mieć test.** `tests/run.luau` chodzi
+   pod samym `luau`, bez Robloxa, w ułamku sekundy. Warunek: moduł nie może
+   dotykać typów Robloxa **na poziomie modułu** (stąd `Lake.CENTER_X` jako
+   liczba, a nie `Vector3`). Wewnątrz funkcji `Vector3` jest OK — test podaje
+   zwykłą tabelę z polami X/Y/Z.
+
+10. **Wymiary budynków liczymy w metrach przez `Build.m()`.** Postać R15 ma
+    5,5 studa = 1,8 m. Budynek dobrany na oko w widoku z góry wygląda
+    karłowato, gdy stanie obok niego gracz.
 
 ## Konwencje Luau
 

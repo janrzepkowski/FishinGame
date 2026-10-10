@@ -58,6 +58,19 @@ Theme.COLOR = table.freeze({
 })
 
 Theme.SPACE = table.freeze({ xs = 4, sm = 8, md = 12, lg = 16, xl = 24 })
+
+--[[
+	Pionowy pas zarezerwowany w lewym górnym rogu na HUD.
+
+	Istnieje, żeby HUD i toasty NIE MUSIAŁY o sobie wiedzieć. HUD wypełnia
+	ten pas, toasty zaczynają się pod nim. Gdyby zamiast tego toasty czytały
+	`AbsoluteSize` HUD-u, podskakiwałyby za każdym razem, gdy pojawia się
+	wskaźnik głębokości — czyli przy każdym zarzuceniu.
+
+	Dlatego też HUD ma STAŁĄ wysokość, a nie `AutomaticSize`: przewidywalny
+	układ jest wart pustego paru pikseli, gdy wskaźnik głębokości jest ukryty.
+]]
+Theme.HUD_BAND = table.freeze({ Desktop = 196, Tablet = 196, Phone = 158 })
 Theme.RADIUS = table.freeze({ sm = 6, md = 10, lg = 16, pill = 999 })
 Theme.TEXT = table.freeze({ micro = 11, small = 13, body = 15, lead = 17, title = 21, hero = 30 })
 

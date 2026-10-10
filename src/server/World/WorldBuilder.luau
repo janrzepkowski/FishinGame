@@ -60,7 +60,7 @@ local rodShop: BasePart? = nil
 	całym jeziorem i wygląda to tak, jakby woda była trawą.
 
 	Drugi spawn z szablonu jest łagodniejszy, ale równie upierdliwy: Roblox
-	losuje między nim a naszym, więc co drugie wejście ląduje się gdzie indziej.
+	losuje między nim a naszym, więc co drugie wejście ląduje gdzie indziej.
 
 	Ruszamy tylko to, co leży bezpośrednio w Workspace i nie należy do nas.
 ]]
@@ -97,7 +97,7 @@ local function reportFloorsOverWater(ours: Instance)
 	params.FilterDescendantsInstances = { ours, Workspace.Terrain }
 	params.MaxParts = 24
 
-	local probe = CFrame.new(LakeConfig.CENTER.X, LakeConfig.SURFACE_Y, LakeConfig.CENTER.Z)
+	local probe = CFrame.new(LakeConfig.CENTER_X, LakeConfig.SURFACE_Y, LakeConfig.CENTER_Z)
 	local size = Vector3.new(LakeConfig.HALF_SIZE * 2, 3, LakeConfig.HALF_SIZE * 2)
 
 	for _, part in Workspace:GetPartBoundsInBox(probe, size, params) do

@@ -9,6 +9,12 @@
 
 	Na telefonie panel zamienia się w arkusz przyklejony do dołu ekranu.
 	Boczna kolumna z desktopu zajęłaby tam połowę szerokości i zasłoniła wodę.
+
+	OPTYMALIZACJA: `update` dostaje KAŻDY snapshot profilu — także ten po
+	samej zmianie monet. Bez kontroli przebudowywalibyśmy 24 wiersze
+	(≈ 150 instancji) przy każdym złowieniu i każdej transakcji, czyli
+	w najgorszym możliwym momencie: w trakcie animacji wyciągania ryby.
+	Dlatego liczymy tani podpis ekwipunku i wychodzimy, gdy się nie zmienił.
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -27,6 +33,27 @@ local root: Frame? = nil
 local list: ScrollingFrame? = nil
 local summaryLabel: TextLabel? = nil
 local emptyLabel: TextLabel? = nil
+
+-- Podpis ostatnio narysowanej listy. Patrz uwaga o optymalizacji w nagłówku.
+local renderedSignature = ""
+
+--[[
+	Tani podpis ekwipunku: liczność + id, masy i ceny.
+
+	Nie jest to hash kryptograficzny i nie musi być — chodzi wyłącznie
+	o wykrycie, czy lista wygląda inaczej niż ta już narysowana. Dwa różne
+	ekwipunki o identycznym podpisie są nieodróżnialne także dla gracza.
+]]
+local function signatureOf(inventory: { Types.CaughtFish }): string
+	local parts = table.create(#inventory + 1)
+	parts[1] = tostring(#inventory)
+
+	for index, caught in inventory do
+		parts[index + 1] = `{caught.fishId}:{caught.mass}:{caught.price}`
+	end
+
+	return table.concat(parts, "|")
+end
 
 local function buildRow(caught: Types.CaughtFish, order: number): Frame
 	local definition = Fish.find(caught.fishId)
@@ -184,6 +211,12 @@ function InventoryPanel.update(profile: Types.Profile)
 	if not (container and summary and empty) then
 		return
 	end
+
+	local signature = signatureOf(profile.inventory)
+	if signature == renderedSignature then
+		return
+	end
+	renderedSignature = signature
 
 	for _, child in container:GetChildren() do
 		if child:IsA("Frame") then

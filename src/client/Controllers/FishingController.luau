@@ -32,6 +32,7 @@ local Net = require(Shared.Net)
 local Types = require(Shared.Types)
 
 local Bobber = require(script.Parent.Parent.Effects.Bobber)
+local CastAnimation = require(script.Parent.Parent.Effects.CastAnimation)
 local CastMeter = require(script.Parent.Parent.UI.CastMeter)
 local Hud = require(script.Parent.Parent.UI.Hud)
 
@@ -155,6 +156,8 @@ local function watchCharacter(character: Model)
 end
 
 function FishingController.start()
+	CastAnimation.start()
+
 	if player.Character then
 		watchCharacter(player.Character)
 	end
@@ -165,6 +168,7 @@ function FishingController.start()
 		-- Bez lokalnego sprzątania gracz wstaje z paskiem podcięcia na ekranie.
 		setPhase("Idle")
 		CastMeter.hide()
+		CastAnimation.reset()
 		Bobber.clear()
 		Hud.setDepth(nil)
 	end)
@@ -172,26 +176,31 @@ function FishingController.start()
 	Net.CastStarted.OnClientEvent:Connect(function(depth: number)
 		setPhase("Waiting")
 		CastMeter.showWaiting()
-		Bobber.cast()
 		Hud.setDepth(depth)
+		-- Spławik wylatuje w momencie puszczenia żyłki przez animację,
+		-- a nie na starcie zamachu — inaczej wyprzedzałby ruch ręki.
+		CastAnimation.playCast(Bobber.launch)
 	end)
 
 	Net.BiteStarted.OnClientEvent:Connect(function(window: number)
 		setPhase("Biting")
 		CastMeter.showBite(window)
+		CastAnimation.playBite()
 		Bobber.dip()
 	end)
 
 	Net.CastResolved.OnClientEvent:Connect(function(result: Types.CastResult)
 		setPhase("Idle")
 		CastMeter.showResult(result)
+		CastAnimation.reset()
 
 		if result.outcome == "Caught" then
 			Bobber.splash()
 		end
 
-		-- Plusk musi zdążyć się pokazać, zanim spławik zniknie.
-		task.delay(0.12, Bobber.clear)
+		-- Zwinięcie zamiast zniknięcia. Plusk zdąży się pokazać, bo
+		-- `reelIn` trwa trzy razy dłużej niż jego animacja startowa.
+		Bobber.reelIn()
 		Hud.setDepth(nil)
 	end)
 end

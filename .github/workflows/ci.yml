@@ -45,6 +45,12 @@ jobs:
           selene --version
           luau-lsp --version
 
+      # Testy idą PRZED lintem i analizą: są najszybsze (poniżej sekundy)
+      # i wyłapują błędy logiki, a nie stylu. Nie ma sensu czekać na
+      # analizę typów, żeby dowiedzieć się, że matematyka jeziora nie działa.
+      - name: Testy jednostkowe
+        run: luau tests/run.luau
+
       # --check, nie `stylua src`: CI nie poprawia formatowania za autora,
       # tylko mówi, że jest nie po naszemu. Poprawka należy do PR-a.
       - name: Formatowanie (stylua --check)
