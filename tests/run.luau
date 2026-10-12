@@ -216,7 +216,7 @@ local function params(strength: number, stamina: number, lineStrength: number)
 		strength = strength,
 		stamina = stamina,
 		lineStrength = lineStrength,
-		progressGain = 0.42,
+		progressGain = 0.3,
 		tensionGain = 0.22,
 		surgeTension = 3.0,
 		surgeProgress = 0.35,

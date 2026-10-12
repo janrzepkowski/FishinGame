@@ -44,6 +44,7 @@ export type Float = {
 	setTension: (tension: number, surging: boolean) -> (),
 	splash: () -> (),
 	reelIn: () -> (),
+	position: () -> Vector3?,
 }
 
 local CONTAINER_NAME = "ClientEffects"
@@ -108,6 +109,13 @@ local function create(getCharacter: () -> Model?): Float
 			motion:Disconnect()
 			motion = nil
 		end
+	end
+
+	--[[ Gdzie jest teraz spławik; nil, gdy go nie ma. Stąd wylatuje
+	     złowiona ryba (`CatchFx`). ]]
+	function self.position(): Vector3?
+		local float = bobber
+		return if float then float.Position else nil
 	end
 
 	function self.clear()
@@ -461,5 +469,6 @@ Bobber.beginFight = own.beginFight
 Bobber.setTension = own.setTension
 Bobber.splash = own.splash
 Bobber.reelIn = own.reelIn
+Bobber.position = own.position
 
 return Bobber

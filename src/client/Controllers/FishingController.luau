@@ -40,6 +40,7 @@ local Types = require(Shared.Types)
 
 local Bobber = require(script.Parent.Parent.Effects.Bobber)
 local CastMeter = require(script.Parent.Parent.UI.CastMeter)
+local CatchFx = require(script.Parent.Parent.Effects.CatchFx)
 local Hotbar = require(script.Parent.Parent.UI.Hotbar)
 local Hud = require(script.Parent.Parent.UI.Hud)
 
@@ -434,6 +435,10 @@ function FishingController.start()
 		CastMeter.showResult(result)
 
 		if result.outcome == "Caught" then
+			-- Ryba wylatuje ze spławika, zanim ten zostanie zwinięty.
+			if result.fish then
+				CatchFx.play(result.fish, result.perfect, result.record, Bobber.position())
+			end
 			Bobber.splash()
 		end
 

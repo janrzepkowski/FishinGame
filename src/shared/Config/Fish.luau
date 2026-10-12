@@ -116,7 +116,7 @@ local DEFINITIONS: { FishDefinition } = {
 		displayName = "Karp",
 		rarity = "Uncommon",
 		spawnWeight = 34,
-		pricePerKg = 46,
+		pricePerKg = 28,
 		minMass = 1.5,
 		maxMass = 14.0,
 		color = Color3.fromRGB(176, 128, 72),
@@ -128,7 +128,7 @@ local DEFINITIONS: { FishDefinition } = {
 		displayName = "Szczupak",
 		rarity = "Uncommon",
 		spawnWeight = 28,
-		pricePerKg = 58,
+		pricePerKg = 38,
 		minMass = 1.0,
 		maxMass = 11.0,
 		color = Color3.fromRGB(88, 124, 96),
@@ -141,9 +141,10 @@ local DEFINITIONS: { FishDefinition } = {
 		displayName = "Sandacz",
 		rarity = "Rare",
 		spawnWeight = 14,
-		pricePerKg = 95,
+		pricePerKg = 64,
 		minMass = 1.2,
 		maxMass = 9.5,
+		boost = { night = 1.8 },
 		color = Color3.fromRGB(122, 136, 150),
 		fight = { strength = 1.15, stamina = 1.05 },
 	},
@@ -152,9 +153,10 @@ local DEFINITIONS: { FishDefinition } = {
 		displayName = "Sum",
 		rarity = "Rare",
 		spawnWeight = 10,
-		pricePerKg = 120,
+		pricePerKg = 40,
 		minMass = 4.0,
 		maxMass = 48.0,
+		boost = { night = 2.5 },
 		color = Color3.fromRGB(76, 68, 60),
 		-- Maraton: nie szarpie mocno, ale nie chce odpuścić.
 		fight = { strength = 1.05, stamina = 1.75 },
@@ -164,9 +166,10 @@ local DEFINITIONS: { FishDefinition } = {
 		displayName = "Łosoś atlantycki",
 		rarity = "Epic",
 		spawnWeight = 4.5,
-		pricePerKg = 260,
+		pricePerKg = 130,
 		minMass = 3.0,
 		maxMass = 18.0,
+		boost = { rain = 1.8 },
 		color = Color3.fromRGB(232, 132, 110),
 		fight = { strength = 1.5, stamina = 1.2 },
 	},
@@ -175,7 +178,7 @@ local DEFINITIONS: { FishDefinition } = {
 		displayName = "Jesiotr",
 		rarity = "Epic",
 		spawnWeight = 3,
-		pricePerKg = 340,
+		pricePerKg = 80,
 		minMass = 6.0,
 		maxMass = 62.0,
 		color = Color3.fromRGB(94, 104, 112),
@@ -186,9 +189,10 @@ local DEFINITIONS: { FishDefinition } = {
 		displayName = "Sum albinos",
 		rarity = "Legendary",
 		spawnWeight = 0.8,
-		pricePerKg = 900,
+		pricePerKg = 170,
 		minMass = 20.0,
 		maxMass = 85.0,
+		boost = { night = 3 },
 		color = Color3.fromRGB(242, 236, 228),
 		fight = { strength = 1.4, stamina = 2.1 },
 	},
@@ -197,9 +201,10 @@ local DEFINITIONS: { FishDefinition } = {
 		displayName = "Złota Rybka",
 		rarity = "Legendary",
 		spawnWeight = 0.3,
-		pricePerKg = 4200,
+		pricePerKg = 14000,
 		minMass = 0.2,
 		maxMass = 1.1,
+		boost = { rain = 3 },
 		color = Color3.fromRGB(255, 198, 64),
 		-- Dwadzieścia deko czystej furii. Walka trwa chwilę, ale jedna
 		-- sekunda nieuwagi przy szarpnięciu zrywa żyłkę.
@@ -211,6 +216,9 @@ local byId: { [string]: FishDefinition } = {}
 for _, definition in DEFINITIONS do
 	assert(byId[definition.id] == nil, `zduplikowane id ryby: {definition.id}`)
 	table.freeze(definition.fight)
+	if definition.boost then
+		table.freeze(definition.boost)
+	end
 	byId[definition.id] = table.freeze(definition)
 end
 
@@ -223,6 +231,44 @@ table.freeze(byId)
 ]]
 function Fish.all(): { FishDefinition }
 	return DEFINITIONS
+end
+
+--[[
+	Waga gatunku w losowaniu przy danej porze i pogodzie (bez szczęścia).
+
+	Część ryb bierze chętniej nocą albo w deszczu (`boost`). To jest powód,
+	żeby zostać nad wodą po zmroku i w ulewie: pora i pogoda zmieniają nie
+	tylko tempo, ale i TO, CO można złowić.
+]]
+function Fish.conditionWeight(definition: FishDefinition, night: boolean, raining: boolean): number
+	local weight = definition.spawnWeight
+	local boost = definition.boost
+	if boost then
+		if night and boost.night then
+			weight *= boost.night
+		end
+		if raining and boost.rain then
+			weight *= boost.rain
+		end
+	end
+	return weight
+end
+
+--[[ Podpowiedź do bestiariusza: kiedy gatunek bierze najchętniej.
+     nil, gdy pora i pogoda nie mają dla niego znaczenia. ]]
+function Fish.hint(definition: FishDefinition): string?
+	local boost = definition.boost
+	if not boost then
+		return nil
+	end
+	if boost.night and boost.rain then
+		return "nocą i w deszczu"
+	elseif boost.night then
+		return "bierze nocą"
+	elseif boost.rain then
+		return "bierze w deszczu"
+	end
+	return nil
 end
 
 function Fish.find(id: string): FishDefinition?

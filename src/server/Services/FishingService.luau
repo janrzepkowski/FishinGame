@@ -113,13 +113,15 @@ local generator = Random.new()
 	Dzięki temu lepsza wędka nie „daje więcej wszystkiego", tylko realnie
 	przesuwa rozkład w stronę rzadkości.
 ]]
-local function pickFish(luck: number): Types.FishDefinition
+local function pickFish(luck: number, night: boolean, raining: boolean): Types.FishDefinition
 	local definitions = Fish.all()
 	local weights = table.create(#definitions)
 
 	for index, definition in definitions do
 		local tier = Fish.RARITY_TIER[definition.rarity]
-		weights[index] = definition.spawnWeight * luck ^ tier
+		-- Pora i pogoda zmieniają wagę wybranych gatunków (sum bierze
+		-- nocą, łosoś w deszczu) — patrz `Fish.conditionWeight`.
+		weights[index] = Fish.conditionWeight(definition, night, raining) * luck ^ tier
 	end
 
 	local index = Rng.weightedIndex(generator, weights)
@@ -478,12 +480,18 @@ local function onRequestCast(player: Player, rawPower: unknown)
 	castCounter += 1
 	local castId = castCounter
 
+	local clock = WeatherService.clock()
+
 	states[player] = {
 		castId = castId,
 		phase = "Waiting",
 		-- Noc dokłada trochę szczęścia — trzeci czynnik obok wędki
 		-- i głębokości, wchodzący w tę samą potęgę rzadkości.
-		fish = pickFish(rod.luck * depthLuck * Environment.luckMultiplier(WeatherService.clock())),
+		fish = pickFish(
+			rod.luck * depthLuck * Environment.luckMultiplier(clock),
+			Environment.isNight(clock),
+			WeatherService.current() == "Rain"
+		),
 		reelWindow = rod.reelWindow,
 		biteAt = 0,
 		nibbleAt = 0,

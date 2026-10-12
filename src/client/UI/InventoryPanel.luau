@@ -25,6 +25,7 @@ local Format = require(Shared.Util.Format)
 local GameConfig = require(Shared.Config.Game)
 local Types = require(Shared.Types)
 
+local FishIcon = require(script.Parent.FishIcon)
 local Theme = require(script.Parent.Theme)
 
 local InventoryPanel = {}
@@ -80,17 +81,23 @@ local function buildRow(caught: Types.CaughtFish, order: number): Frame
 			BackgroundColor3 = accent,
 			BorderSizePixel = 0,
 		}, Theme.corner(Theme.RADIUS.sm)),
+		-- Podgląd 3D tej samej ryby, która wyskoczyła z wody.
+		FishIcon.create(caught.fishId, {
+			Name = "Icon",
+			Size = UDim2.fromOffset(44, 36),
+			Position = UDim2.fromOffset(10, 5),
+		}),
 		Theme.label({
-			Size = UDim2.new(0.58, -14, 0, 20),
-			Position = UDim2.fromOffset(14, 5),
+			Size = UDim2.new(0.58, -58, 0, 20),
+			Position = UDim2.fromOffset(60, 5),
 			Font = Theme.FONT_BOLD,
 			TextSize = Theme.TEXT.body,
 			TextColor3 = Theme.COLOR.text,
 			Text = name,
 		}),
 		Theme.label({
-			Size = UDim2.new(0.58, -14, 0, 16),
-			Position = UDim2.fromOffset(14, 24),
+			Size = UDim2.new(0.58, -58, 0, 16),
+			Position = UDim2.fromOffset(60, 24),
 			TextSize = Theme.TEXT.micro,
 			TextColor3 = accent,
 			Text = `{rarity} · {Format.mass(caught.mass)}`,

@@ -95,7 +95,10 @@ local Game = {
 	-- różnicę, której nie da się zobaczyć.
 	FIGHT_TICK = 0.05,
 	-- Bazowy przyrost postępu na sekundę, dzielony przez `stamina` ryby.
-	FIGHT_PROGRESS_GAIN = 0.42,
+	-- Obniżone z 0,42: walka trwała ok. 3 s niezależnie od ryby i gracz nie
+	-- zdążał poczuć różnicy między gatunkami. Przy 0,3 płoć to ~1,7 s
+	-- czystego holu, a najwytrwalsza ryba ~7 s (testy pilnują granicy 10 s).
+	FIGHT_PROGRESS_GAIN = 0.3,
 	-- Bazowy przyrost napięcia, mnożony przez `strength` ryby i dzielony
 	-- przez `lineStrength` wędki.
 	FIGHT_TENSION_GAIN = 0.22,

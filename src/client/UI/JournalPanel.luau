@@ -17,6 +17,7 @@ local Fish = require(Shared.Config.Fish)
 local Format = require(Shared.Util.Format)
 local Types = require(Shared.Types)
 
+local FishIcon = require(script.Parent.FishIcon)
 local Theme = require(script.Parent.Theme)
 
 local JournalPanel = {}
@@ -78,9 +79,16 @@ local function buildBestiaryRow(
 			BackgroundTransparency = if caught then 0 else 0.6,
 			BorderSizePixel = 0,
 		}),
+		-- Niezłowiony gatunek to ciemna sylwetka: widać, co jest do zdobycia,
+		-- a kolory zostają nagrodą za połów.
+		FishIcon.create(definition.id, {
+			Name = "Icon",
+			Size = UDim2.fromOffset(40, 28),
+			Position = UDim2.fromOffset(8, 3),
+		}, caught),
 		Theme.label({
-			Size = UDim2.new(0.56, -14, 1, 0),
-			Position = UDim2.fromOffset(12, 0),
+			Size = UDim2.new(0.56, -52, 1, 0),
+			Position = UDim2.fromOffset(52, 0),
 			Font = Theme.FONT_BOLD,
 			TextSize = Theme.TEXT.small,
 			-- Nieznane gatunki pokazujemy po nazwie, nie jako „???".
@@ -95,7 +103,11 @@ local function buildBestiaryRow(
 			TextSize = Theme.TEXT.micro,
 			TextXAlignment = Enum.TextXAlignment.Right,
 			TextColor3 = if caught then accent else Theme.COLOR.textMuted,
-			Text = if record then `rekord {Format.mass(record)}` else "niezłowiona",
+			Text = if record
+				then `rekord {Format.mass(record)}`
+				-- Podpowiedź, kiedy szukać: „bierze nocą" mówi graczowi,
+				-- co zrobić, a samo „niezłowiona" tylko stwierdza fakt.
+				else (Fish.hint(definition) or "niezłowiona"),
 		})
 	) :: Frame
 end

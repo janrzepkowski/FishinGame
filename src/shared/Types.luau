@@ -33,6 +33,11 @@ export type FightProfile = {
 	stamina: number,
 }
 
+export type FishBoost = {
+	night: number?,
+	rain: number?,
+}
+
 export type FishDefinition = {
 	id: string,
 	displayName: string,
@@ -45,6 +50,9 @@ export type FishDefinition = {
 	maxMass: number,
 	color: Color3,
 	fight: FightProfile,
+	-- Mnożniki wagi w losowaniu przy danej porze albo pogodzie
+	-- (np. `night = 2.5` — nocą bierze dwa i pół raza chętniej).
+	boost: FishBoost?,
 }
 
 export type RodDefinition = {

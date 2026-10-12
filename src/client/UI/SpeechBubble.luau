@@ -3,51 +3,32 @@
 	SpeechBubble — dymek z kwestią nad głową sprzedawcy.
 
 	Własny, a nie wbudowany czat dymkowy Robloxa
-	(`TextChatService:DisplayBubble`). Tamten rysuje się w świecie i znikał
-	za szyldem oraz markizą stoiska — sprzedawca stoi pod daszkiem, więc
-	z większości kątów dymek był zasłonięty. Ten ma `AlwaysOnTop`: widać go
-	zawsze, gdy widać miejsce, w którym stoi postać.
+	(`TextChatService:DisplayBubble`). Tamten rysuje się nad głową i znikał
+	za szyldem oraz markizą stoiska — sprzedawca stoi pod daszkiem. Ten jest
+	wysunięty ku kamerze, przed stoisko.
 
 	To UI w świecie gry (`BillboardGui`), więc nie przechodzi przez
 	`Theme.mountRoot` — ale kolory, odstępy i rozmiary tekstu bierze z `Theme`
 	jak każdy inny ekran.
 ]]
 
-local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
 local Theme = require(script.Parent.Theme)
 
 local SpeechBubble = {}
 
-local GUI_NAME = "SpeechBubbles"
 -- Dalej dymek byłby nieczytelną plamką przesłaniającą mapę.
 local MAX_DISTANCE = 70
 local WIDTH = 250
 local FADE = 0.25
+-- O ile studów dymek jest wysunięty ku kamerze. Lada z markizą wystaje
+-- ok. 4 study przed sprzedawcę.
+local FORWARD = 6
 
-local container: Folder? = nil
 -- Jeden dymek na postać: nowa kwestia zastępuje poprzednią, zamiast
 -- układać się w stos nad głową.
 local active: { [Instance]: BillboardGui } = {}
-
---[[
-	Zwykły Folder w PlayerGui, NIE ScreenGui. `BillboardGui` zagnieżdżony
-	w `ScreenGui` po prostu się nie rysuje — bez błędu i bez ostrzeżenia;
-	dymek istniał w drzewie, miał tekst i nie było go na ekranie.
-]]
-local function getContainer(): Folder
-	local existing = container
-	if existing and existing.Parent then
-		return existing
-	end
-
-	local folder = Instance.new("Folder")
-	folder.Name = GUI_NAME
-	folder.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
-	container = folder
-	return folder
-end
 
 --[[
 	Pokazuje kwestię nad `adornee` (zwykle głowa) na `duration` sekund.
@@ -64,11 +45,14 @@ function SpeechBubble.show(adornee: BasePart, speaker: string, text: string, dur
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "Bubble"
 	billboard.Adornee = adornee
-	billboard.AlwaysOnTop = true
 	billboard.MaxDistance = MAX_DISTANCE
 	billboard.Size = UDim2.fromOffset(WIDTH, 96)
-	-- Nad głową i kapeluszem, z zapasem na sam dymek.
-	billboard.StudsOffsetWorldSpace = Vector3.new(0, 3.2, 0)
+	-- Dymek jest wysunięty W STRONĘ KAMERY (oś Z w `StudsOffset` liczy się
+	-- w układzie kamery), więc rysuje się przed ladą, szyldem i markizą,
+	-- pod którymi stoi sprzedawca — z każdej strony, z której patrzy gracz.
+	-- `AlwaysOnTop` nie używamy: w testach takie dymki nie pojawiały się
+	-- na zrzutach wcale, a zwykłe — tak.
+	billboard.StudsOffset = Vector3.new(0, 0.6, FORWARD)
 	billboard.LightInfluence = 0
 	billboard.ResetOnSpawn = false
 
@@ -114,7 +98,10 @@ function SpeechBubble.show(adornee: BasePart, speaker: string, text: string, dur
 		{ Scale = 1 }
 	):Play()
 
-	billboard.Parent = getContainer()
+	-- Rodzicem jest sama część w świecie (głowa sprzedawcy), tak jak przy
+	-- tabliczce nad złowioną rybą: najprostszy układ, który rysuje się
+	-- zawsze, i dymek znika razem z postacią.
+	billboard.Parent = adornee
 	active[adornee] = billboard
 
 	task.delay(duration, function()
