@@ -54,6 +54,7 @@ local function onRequestSellAll(player: Player)
 
 	if #profile.inventory == 0 then
 		Net.Notify:FireClient(player, "Nie masz czego sprzedać.", "Info")
+		Net.NpcLine:FireClient(player, GameConfig.STAND_FISH_BUYER, "empty")
 		return
 	end
 
@@ -78,6 +79,7 @@ local function onRequestSellAll(player: Player)
 		`Sprzedano {count} szt. za {Format.coins(total)} monet.`,
 		"Success"
 	)
+	Net.NpcLine:FireClient(player, GameConfig.STAND_FISH_BUYER, "sold")
 
 	local updated = DataService.get(player)
 	Analytics.funnelStep(player, 4, "Sold")
@@ -108,12 +110,14 @@ local function onRequestBuyRod(player: Player, rodId: unknown)
 
 	if profile.ownedRods[definition.id] then
 		Net.Notify:FireClient(player, "Już masz tę wędkę.", "Info")
+		Net.NpcLine:FireClient(player, GameConfig.STAND_ROD_SHOP, "owned")
 		return
 	end
 
 	if profile.coins < definition.price then
 		local missing = definition.price - profile.coins
 		Net.Notify:FireClient(player, `Brakuje {Format.coins(missing)} monet.`, "Warning")
+		Net.NpcLine:FireClient(player, GameConfig.STAND_ROD_SHOP, "poor")
 		return
 	end
 
@@ -127,6 +131,7 @@ local function onRequestBuyRod(player: Player, rodId: unknown)
 
 	task.spawn(RodService.refresh, player)
 	Net.Notify:FireClient(player, `Kupiono: {definition.displayName}`, "Success")
+	Net.NpcLine:FireClient(player, GameConfig.STAND_ROD_SHOP, "bought")
 
 	local updated = DataService.get(player)
 	Analytics.coinsSpent(

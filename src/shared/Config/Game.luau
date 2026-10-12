@@ -141,6 +141,11 @@ local Game = {
 	-- Stała musi być w `shared`, bo klient nie może requireować WorldBuildera.
 	STAND_ATTRIBUTE = "StandKind",
 
+	-- Sprzedawcy przy stoiskach: tag na modelu i atrybut mówiący, przy
+	-- którym stoisku stoi. Klient znajduje ich po tagu, nie po nazwie.
+	NPC_TAG = "ShopNpc",
+	NPC_ATTRIBUTE = "NpcKind",
+
 	-- ---------------------------------------------------------------------
 	-- Atrybuty łowienia na postaci
 	-- ---------------------------------------------------------------------

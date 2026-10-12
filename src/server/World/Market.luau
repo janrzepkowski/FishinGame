@@ -30,6 +30,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
 
 local Build = require(script.Parent.Build)
+local Npc = require(script.Parent.Npc)
 
 local Market = {}
 
@@ -630,6 +631,13 @@ local function buildStall(
 
 	local counter = buildCounter(model, base, style)
 	props(model, base)
+
+	-- Sprzedawca stoi na podłodze stoiska, tuż za ladą, przodem do klienta.
+	Npc.spawn(
+		model,
+		base * CFrame.new(0, DECK, -DEPTH / 2 + COUNTER_DEPTH + m(0.75)),
+		style.standKind
+	)
 
 	counter:SetAttribute(GameConfig.STAND_ATTRIBUTE, style.standKind)
 

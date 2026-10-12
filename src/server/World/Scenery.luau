@@ -55,6 +55,8 @@ local SHORE_STONE_COUNT = 20
 local REED_CLUMP_COUNT = 44
 local LILY_COUNT = 26
 local MEADOW_PATCH_COUNT = 34
+local SEAWEED_PATCH_COUNT = 70
+local BED_ROCK_COUNT = 36
 
 -- Układ awaryjny z prostych brył.
 local FALLBACK_TREE_COUNT = 58
@@ -73,6 +75,13 @@ local FOLIAGE = {
 local REED_GREEN = Color3.fromRGB(104, 150, 72)
 local LILY_GREEN = Color3.fromRGB(86, 156, 84)
 local STONE = Color3.fromRGB(132, 136, 142)
+-- Roślinność dna: chłodniejsza i ciemniejsza niż na lądzie, żeby pod wodą
+-- nie świeciła jak trawnik.
+local SEAWEED = {
+	Color3.fromRGB(44, 118, 92),
+	Color3.fromRGB(58, 134, 84),
+	Color3.fromRGB(34, 98, 100),
+}
 local BLOSSOM = {
 	Color3.fromRGB(240, 238, 232),
 	Color3.fromRGB(232, 190, 96),
@@ -351,6 +360,83 @@ local function buildGrove(
 			generator:NextNumber(1.1, 1.6),
 			{ solid = accent ~= "Mushroom B", shadow = false, accent = BLOSSOM[1] }
 		)
+	end
+end
+
+--[[
+	Dno jeziora: kępy wodorostów i kamienie.
+
+	Jezioro bez dna to niebieska tafla — gracz, który wpadnie do wody albo
+	spojrzy z pomostu w dół, ma zobaczyć, że pod spodem coś rośnie. Te same
+	modele trzcin i traw co na brzegu, przeskalowane i przemalowane.
+
+	WYSOKOŚĆ jest przycięta do głębokości: wodorost wystający ponad taflę
+	na środku jeziora wyglądałby jak błąd. Pas pod pomostem zostaje pusty
+	(`isReserved`), żeby nic nie przesłaniało spławika od spodu.
+]]
+local function buildLakeBed(scenery: Instance, catalog: Catalog, generator: Random)
+	-- Gładki teren rysuje dno pół woksela (2 study) ponad wypełnieniem —
+	-- to samo zjawisko, co przy poziomie gruntu w `Ground`.
+	local function bedY(depth: number): number
+		return LakeConfig.SURFACE_Y - depth + 2
+	end
+
+	local function sampleBed(minDepth: number): (number?, number?, number?)
+		for _ = 1, 40 do
+			local angle = yaw(generator)
+			local distance = math.sqrt(generator:NextNumber()) * LakeConfig.HALF_SIZE
+			local x = LakeConfig.CENTER_X + math.cos(angle) * distance
+			local z = LakeConfig.CENTER_Z + math.sin(angle) * distance
+			local depth = LakeConfig.depthAt(Vector3.new(x, 0, z))
+			if depth >= minDepth and not isReserved(x, z) then
+				return x, z, depth
+			end
+		end
+		return nil, nil, nil
+	end
+
+	for _ = 1, SEAWEED_PATCH_COUNT do
+		local x, z, depth = sampleBed(8)
+		if x and z and depth then
+			local green = pick(generator, SEAWEED)
+			-- Zapas 3 studów pod taflą. Najwyższy model ma 3,8 studa.
+			local maxScale = math.clamp((depth - 5) / 3.8, 0.8, 3.4)
+
+			for _ = 1, generator:NextInteger(2, 5) do
+				local px = x + generator:NextNumber(-3, 3)
+				local pz = z + generator:NextNumber(-3, 3)
+				if LakeConfig.depthAt(Vector3.new(px, 0, pz)) == depth then
+					place(
+						scenery,
+						catalog,
+						pick(generator, { "Reeds", "Reeds", "Grass Tuft A", "Cattails" }),
+						px,
+						bedY(depth) - 0.3,
+						pz,
+						yaw(generator),
+						generator:NextNumber(0.8, maxScale),
+						{ solid = false, shadow = false, leaves = green }
+					)
+				end
+			end
+		end
+	end
+
+	for _ = 1, BED_ROCK_COUNT do
+		local x, z, depth = sampleBed(8)
+		if x and z and depth then
+			place(
+				scenery,
+				catalog,
+				pick(generator, { "Rock A", "Rock B", "Shore Stones A" }),
+				x,
+				bedY(depth) - 0.4,
+				z,
+				yaw(generator),
+				generator:NextNumber(1.2, 3),
+				{ solid = false, shadow = false }
+			)
+		end
 	end
 end
 
@@ -643,6 +729,7 @@ function Scenery.build(parent: Instance)
 	local catalog = loadCatalog()
 	if catalog then
 		buildFromPack(scenery, catalog, generator)
+		buildLakeBed(scenery, catalog, generator)
 	else
 		buildFallback(scenery, generator)
 	end

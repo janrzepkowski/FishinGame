@@ -191,6 +191,16 @@ Net.CastResolved = remote("CastResolved")
 --[[ (entries: { Types.LeaderboardEntry }) — odświeżony ranking. ]]
 Net.LeaderboardUpdated = remote("LeaderboardUpdated")
 
+--[[
+	(standKind: string, lineKey: string) — sprzedawca przy danym stoisku
+	reaguje na transakcję („sold", „bought", „poor"...).
+
+	Niesie KLUCZ sytuacji, nie tekst: kwestię losuje klient z
+	`Config/Npc`, więc serwer nie musi znać dialogów, a ich zmiana nie
+	dotyka protokołu.
+]]
+Net.NpcLine = remote("NpcLine")
+
 --[[ (message: string, kind: Types.NotifyKind) — toast w UI. ]]
 Net.Notify = remote("Notify")
 

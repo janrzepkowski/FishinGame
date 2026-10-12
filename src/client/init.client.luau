@@ -28,6 +28,8 @@ local Types = require(Shared.Types)
 
 local AnglerController = require(script.Controllers.AnglerController)
 local FishingController = require(script.Controllers.FishingController)
+local LakeLife = require(script.Effects.LakeLife)
+local NpcController = require(script.Controllers.NpcController)
 local ProfileCache = require(script.ProfileCache)
 local ShopController = require(script.Controllers.ShopController)
 local Underwater = require(script.Effects.Underwater)
@@ -114,5 +116,7 @@ FishingController.start()
 -- Po FishingController: czyta z niego fazę lokalnego gracza.
 AnglerController.start()
 ShopController.start()
+NpcController.start()
+LakeLife.start()
 
 Net.RequestProfile:FireServer()

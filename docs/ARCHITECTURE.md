@@ -625,3 +625,27 @@ niespójną. Podajemy jeden kompletny `CFrame`.
 | nowy kolor lub rozmiar tekstu | `Theme.COLOR` / `Theme.TEXT` — nigdy liczba w miejscu użycia |
 | nowy RemoteEvent | `shared/Net.luau` — z komentarzem opisującym payload |
 | nowy typ przez granicę klient↔serwer | `shared/Types.luau` |
+
+## Sprzedawcy i życie w jeziorze
+
+**Sprzedawcy** (`server/World/Npc.luau`) to awatary R15 budowane z kodu przez
+`Players:CreateHumanoidModelFromDescriptionAsync` — bez pliku modelu w repo.
+Wygląd, głos i kwestie są w `shared/Config/Npc.luau`. Sprzedawca jest
+dekoracją: transakcje dalej obsługuje `ShopService` przez ProximityPrompt
+na ladzie, więc gdy postać się nie zbuduje, sklep działa bez niej.
+
+Kwestie mają dwa źródła. Powitanie wybiera klient, gdy gracz podejdzie.
+Reakcję na transakcję ogłasza serwer przez `Net.NpcLine`, bo tylko on wie,
+czy sprzedaż przeszła — i wysyła **klucz sytuacji**, nie tekst.
+
+`client/Controllers/NpcController.luau` pokazuje kwestię wbudowanym czatem
+dymkowym (`TextChatService:DisplayBubble`) i odtwarza krótki okrzyk z
+syntezatora mowy (`AudioTextToSpeech`). Okrzyk, a nie całe zdanie, bo
+syntezator nie obsługuje polskiego. Każdy okrzyk generujemy raz i gramy
+z pamięci: limit zapytań liczy się od generowania, nie od odtworzeń.
+
+**Życie w jeziorze** to dwie warstwy. Wodorosty i kamienie na dnie stawia
+serwer (`Scenery.buildLakeBed`) z tych samych modeli co roślinność brzegowa.
+Ławice i ryby wyskakujące nad wodę rysuje każdy klient u siebie
+(`client/Effects/LakeLife.luau`) — są czysto dekoracyjne i nie mają związku
+z tym, co gracz złowi.
