@@ -33,6 +33,29 @@ export type FightProfile = {
 	stamina: number,
 }
 
+--[[
+	Wygląd modelu ryby w `shared/Util/FishModel`. Opcjonalny: gatunek bez
+	`look` dostaje zwykłą, okrągłą rybkę w swoim kolorze, więc dodanie ryby
+	nadal wymaga wyłącznie wpisu w `Config/Fish`.
+
+	`body`    — sylwetka: Round (płoć), Tall (leszcz), Long (szczupak),
+	            Torpedo (łosoś, jesiotr)
+	`pattern` — wzór na boku
+	`accent`  — płetwy i wzór; `belly` — jasny brzuch
+]]
+export type FishBody = "Round" | "Tall" | "Long" | "Torpedo"
+export type FishPattern = "None" | "Stripes" | "Spots" | "Scutes"
+
+export type FishLook = {
+	body: FishBody,
+	pattern: FishPattern,
+	accent: Color3,
+	belly: Color3,
+	whiskers: boolean?,
+	-- Neonowa poświata i iskry — zarezerwowane dla legend.
+	sparkle: boolean?,
+}
+
 export type FishDefinition = {
 	id: string,
 	displayName: string,
@@ -43,7 +66,10 @@ export type FishDefinition = {
 	pricePerKg: number,
 	minMass: number,
 	maxMass: number,
+	-- Główny kolor ciała modelu. Jaskrawy, nie realistyczny: gra jest dla
+	-- dzieci i ryba ma się odróżniać od wody i od innych gatunków.
 	color: Color3,
+	look: FishLook?,
 	fight: FightProfile,
 }
 
@@ -111,6 +137,9 @@ export type CastResult = {
 	perfect: boolean,
 	-- Czy to nowy rekord wagi dla tego gatunku.
 	record: boolean,
+	-- Pierwsza sztuka gatunku w historii konta. Osobno od `record`, bo to
+	-- inna nagroda: „odkryłeś nową rybę" zamiast „pobiłeś swój wynik".
+	newSpecies: boolean,
 }
 
 --[[

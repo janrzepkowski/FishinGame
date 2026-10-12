@@ -51,9 +51,9 @@ function MobileControls.mount(parent: Instance)
 		Position = UDim2.new(1, -Theme.SPACE.lg, 1, -180),
 		Size = UDim2.fromOffset(104, 104),
 		BackgroundColor3 = Theme.COLOR.accent,
-		TextSize = Theme.TEXT.body,
+		TextSize = Theme.TEXT.lead,
 		Text = "ZARZUĆ",
-	}, Theme.stroke(Color3.fromRGB(255, 255, 255), 2))
+	}, Theme.stroke(Theme.COLOR.stroke, Theme.OUTLINE + 1))
 
 	local corner = action:FindFirstChildOfClass("UICorner")
 	if corner then
@@ -68,7 +68,7 @@ function MobileControls.mount(parent: Instance)
 		BackgroundColor3 = Theme.COLOR.panelAlt,
 		TextColor3 = Theme.COLOR.text,
 		TextSize = Theme.TEXT.lead,
-		Text = "▦",
+		Text = "🎒",
 	}, Theme.stroke())
 
 	local inventoryCorner = inventory:FindFirstChildOfClass("UICorner")
@@ -84,7 +84,7 @@ function MobileControls.mount(parent: Instance)
 		BackgroundColor3 = Theme.COLOR.panelAlt,
 		TextColor3 = Theme.COLOR.text,
 		TextSize = Theme.TEXT.lead,
-		Text = "✦",
+		Text = "📖",
 	}, Theme.stroke())
 
 	for _, button in { inventory, journal } do

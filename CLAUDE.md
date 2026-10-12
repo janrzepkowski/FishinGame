@@ -45,7 +45,7 @@ src/client/     -> StarterPlayerScripts.Client (tylko klient)
 | `server/Services/` | logika gry; każdy serwis ma `start()` |
 | `server/World/` | budowa mapy: `Build` (prymitywy), `Ground` (teren), `Dock`, `Market`, `Scenery` |
 | `client/Controllers/` | wejście gracza i reakcja na eventy serwera |
-| `client/UI/` | ekrany; każdy ma `mount(parent)`; `Theme` to system projektowy |
+| `client/UI/` | ekrany; każdy ma `mount(parent)`; `Theme` to system projektowy, `FishCard` to karta ryby |
 | `client/Effects/` | efekty czysto lokalne (nie replikują się) |
 
 Kolejność startu jest w `src/server/init.server.luau` i `src/client/init.client.luau`.
@@ -90,7 +90,14 @@ Te pliki nie zawierają logiki gry — tylko kolejność. Nie dokładaj do nich 
 
    **Środek ekranu jest dla rozgrywki.** Komunikaty idą w lewy dolny róg,
    HUD w lewy górny, pasek walki na dół. Nic nowego nie ląduje w środku
-   poza oknami, które gracz sam otworzył.
+   poza oknami, które gracz sam otworzył. Wyjątek: baner nagrody
+   (`UI/Celebration`) w **górnym** środku — chwilowy, bez kliknięć.
+
+   **Styl jest cukierkowy** — gra jest dla dzieci. Jasne karty z grubym
+   obrysem (`Theme.OUTLINE`), kolorowe nagłówki (`Theme.header`), przyciski
+   z gradientem, FredokaOne, tekst z obrysem (`Theme.outline`). Mapa tak
+   samo: `SmoothPlastic`, nasycone kolory, zaokrąglone bryły
+   (`Build.ellipsoid`, `Build.pill`), zero ostrych, szarych klocków.
 
 9. **Czysta matematyka w `shared/` ma mieć test.** `tests/run.luau` chodzi
    pod samym `luau`, bez Robloxa, w ułamku sekundy. Warunek: moduł nie może
@@ -109,7 +116,9 @@ Te pliki nie zawierają logiki gry — tylko kolejność. Nie dokładaj do nich 
 
 12. **Modele pokazywane w UI biorą geometrię z `shared/`, nie z obrazków.**
     `RodModel` opisuje wędkę jako dane; Tool, sklep i pasek czytają to samo.
-    Obrazek wgrany na Roblox rozjedzie się z modelem przy pierwszej zmianie.
+    `FishModel` tak samo dla ryb: ekwipunek, bestiariusz, wyskok z wody
+    i lada w skupie. Obrazek wgrany na Roblox rozjedzie się z modelem przy
+    pierwszej zmianie.
 
 13. **Ciągły strumień stanu idzie `UnreliableRemoteEvent`em**, zdarzenie
     jednorazowe — zwykłym. Zgubiona klatka walki nic nie znaczy, zgubione

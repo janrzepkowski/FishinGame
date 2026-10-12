@@ -35,6 +35,8 @@ local Types = require(Shared.Types)
 local Bobber = require(script.Parent.Parent.Effects.Bobber)
 local CastAnimation = require(script.Parent.Parent.Effects.CastAnimation)
 local CastMeter = require(script.Parent.Parent.UI.CastMeter)
+local CatchShowcase = require(script.Parent.Parent.Effects.CatchShowcase)
+local Celebration = require(script.Parent.Parent.UI.Celebration)
 local Hotbar = require(script.Parent.Parent.UI.Hotbar)
 local Hud = require(script.Parent.Parent.UI.Hud)
 
@@ -290,6 +292,7 @@ function FishingController.start()
 		CastMeter.hide()
 		CastAnimation.reset()
 		Bobber.clear()
+		CatchShowcase.clear()
 		Hud.setDepth(nil)
 	end)
 
@@ -327,8 +330,15 @@ function FishingController.start()
 		CastMeter.showResult(result)
 		CastAnimation.reset()
 
-		if result.outcome == "Caught" then
+		local caught = result.fish
+		local from = Bobber.position()
+		if result.outcome == "Caught" and caught then
 			Bobber.splash()
+			-- Ryba wyskakuje ze spławika, a baner nagrody pojawia się,
+			-- gdy dotrze nad głowę gracza — oba efekty grają razem.
+			CatchShowcase.play(caught, from, function()
+				Celebration.catch(result)
+			end)
 		end
 
 		-- Zwinięcie zamiast zniknięcia. Plusk zdąży się pokazać, bo

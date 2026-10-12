@@ -137,7 +137,13 @@ local function resolve(player: Player, result: Types.CastResult)
 end
 
 local function fail(player: Player, outcome: Types.CastOutcome)
-	resolve(player, { outcome = outcome, fish = nil, perfect = false, record = false })
+	resolve(player, {
+		outcome = outcome,
+		fish = nil,
+		perfect = false,
+		record = false,
+		newSpecies = false,
+	})
 end
 
 --[[ Ryba wyholowana: zapis do profilu, rekordy, zadania, telemetria. ]]
@@ -146,6 +152,7 @@ local function land(player: Player, state: CastState)
 	local caught = rollCatch(definition, state.perfect)
 
 	local isRecord = false
+	local isNewSpecies = false
 
 	local applied = DataService.mutate(player, function(profile)
 		table.insert(profile.inventory, caught)
@@ -157,6 +164,7 @@ local function land(player: Player, state: CastState)
 			-- Pierwsza sztuka gatunku też jest rekordem, ale nie chcemy
 			-- o tym krzyczeć — inaczej pierwsze 12 ryb to 12 fanfar.
 			isRecord = record ~= nil
+			isNewSpecies = record == nil
 		end
 	end)
 
@@ -171,6 +179,7 @@ local function land(player: Player, state: CastState)
 		fish = caught,
 		perfect = state.perfect,
 		record = isRecord,
+		newSpecies = isNewSpecies,
 	})
 
 	Analytics.funnelStep(player, 3, "Landed")

@@ -30,7 +30,7 @@ local DEFINITIONS: { RodDefinition } = {
 		biteSpeed = 1.0,
 		reelWindow = 1.5,
 		lineStrength = 1.0,
-		color = Color3.fromRGB(141, 102, 60),
+		color = Color3.fromRGB(240, 150, 80),
 	},
 	{
 		id = "fiber",
@@ -41,7 +41,7 @@ local DEFINITIONS: { RodDefinition } = {
 		biteSpeed = 0.85,
 		reelWindow = 1.7,
 		lineStrength = 1.2,
-		color = Color3.fromRGB(72, 86, 102),
+		color = Color3.fromRGB(60, 200, 210),
 	},
 	{
 		id = "carbon",
@@ -52,7 +52,7 @@ local DEFINITIONS: { RodDefinition } = {
 		biteSpeed = 0.7,
 		reelWindow = 1.9,
 		lineStrength = 1.45,
-		color = Color3.fromRGB(38, 40, 46),
+		color = Color3.fromRGB(150, 100, 240),
 	},
 	{
 		id = "tournament",
@@ -63,7 +63,7 @@ local DEFINITIONS: { RodDefinition } = {
 		biteSpeed = 0.55,
 		reelWindow = 2.2,
 		lineStrength = 1.8,
-		color = Color3.fromRGB(196, 158, 72),
+		color = Color3.fromRGB(255, 196, 40),
 	},
 }
 

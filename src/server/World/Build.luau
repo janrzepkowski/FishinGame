@@ -99,10 +99,81 @@ function Build.cylinder(parent: Instance, props: { [string]: any }): Part
 	return part
 end
 
+--[[ Kula. UWAGA: `Shape = Ball` wymusza RÓWNE wymiary — przy rozmiarze
+     (4, 3, 4) silnik i tak zrobi kulę 3×3×3. Do spłaszczonych brył
+     (korony drzew, kamienie, balony) jest `Build.ellipsoid`. ]]
 function Build.sphere(parent: Instance, props: { [string]: any }): Part
 	local part = Build.block(parent, props)
 	part.Shape = Enum.PartType.Ball
 	return part
+end
+
+--[[
+	Elipsoida: Part z `SpecialMesh` typu Sphere, rozciągniętą do `Size`.
+
+	To podstawowa bryła cukierkowej mapy. Zaokrąglone korony, kamienie,
+	balony i kopułki — wszystko, co w poprzedniej wersji było kulą
+	(bo Ball nie umie być spłaszczony) albo klockiem.
+
+	Kolizja liczy się po prostopadłościanie Partu, nie po elipsoidzie.
+	Dlatego elipsoidy domyślnie nie kolidują (jak wszystko w Build),
+	a tam, gdzie gracz ma się zatrzymać, stawiamy niewidzialny walec.
+]]
+function Build.ellipsoid(parent: Instance, props: { [string]: any }): Part
+	local part = Build.block(parent, props)
+	local mesh = Instance.new("SpecialMesh")
+	mesh.MeshType = Enum.MeshType.Sphere
+	mesh.Parent = part
+	return part
+end
+
+--[[
+	Pigułka: walec z kulami na końcach, leżący wzdłuż lokalnego X.
+
+	Zaokrąglone belki, słupki i poręcze — bez ostrych krawędzi, które
+	odróżniały mapę od cukierkowego interfejsu. `length` to długość
+	całości razem z zaokrągleniami.
+]]
+function Build.pill(
+	parent: Instance,
+	cframe: CFrame,
+	length: number,
+	thickness: number,
+	props: { [string]: any }
+): Part
+	local core = math.max(length - thickness, 0.05)
+	local body = Build.cylinder(parent, props)
+	body.Size = Vector3.new(core, thickness, thickness)
+	body.CFrame = cframe
+
+	for _, side in { -1, 1 } do
+		local cap = Build.sphere(parent, props)
+		cap.Name = "PillCap"
+		cap.Size = Vector3.new(thickness, thickness, thickness)
+		cap.CFrame = cframe * CFrame.new(side * core / 2, 0, 0)
+		-- Czapki nigdy nie kolidują: kula na końcu barierki to miejsce,
+		-- o które gracz zahacza, a nie po którym chodzi.
+		cap.CanCollide = false
+	end
+
+	return body
+end
+
+--[[ Pionowa pigułka (słupek) stojąca na punkcie `base`. ]]
+function Build.post(
+	parent: Instance,
+	base: Vector3,
+	height: number,
+	thickness: number,
+	props: { [string]: any }
+): Part
+	return Build.pill(
+		parent,
+		CFrame.new(base + Vector3.new(0, height / 2, 0)) * CFrame.Angles(0, 0, math.rad(90)),
+		height,
+		thickness,
+		props
+	)
 end
 
 --[[ Pusty Model — grupuje elementy jednej budowli, żeby dało się ją ruszyć całą. ]]
@@ -164,22 +235,30 @@ function Build.signFace(
 	gui.Brightness = 1.6
 	gui.Parent = board
 
+	-- Ta sama czcionka i ten sam obrys liter co w interfejsie: szyld na
+	-- budynku i okno sklepu mają wyglądać jak z jednej gry.
 	local titleLabel = Instance.new("TextLabel")
-	titleLabel.Size = UDim2.fromScale(1, 0.62)
+	titleLabel.Size = UDim2.fromScale(0.94, 0.6)
+	titleLabel.Position = UDim2.fromScale(0.03, 0.02)
 	titleLabel.BackgroundTransparency = 1
-	titleLabel.Font = Enum.Font.GothamBlack
+	titleLabel.Font = Enum.Font.FredokaOne
 	titleLabel.Text = title
 	titleLabel.TextColor3 = accent
 	titleLabel.TextScaled = true
 	titleLabel.Parent = gui
 
+	local titleStroke = Instance.new("UIStroke")
+	titleStroke.Color = Color3.fromRGB(40, 46, 84)
+	titleStroke.Thickness = 4
+	titleStroke.Parent = titleLabel
+
 	local subtitleLabel = Instance.new("TextLabel")
-	subtitleLabel.Size = UDim2.fromScale(1, 0.34)
-	subtitleLabel.Position = UDim2.fromScale(0, 0.64)
+	subtitleLabel.Size = UDim2.fromScale(0.94, 0.3)
+	subtitleLabel.Position = UDim2.fromScale(0.03, 0.64)
 	subtitleLabel.BackgroundTransparency = 1
-	subtitleLabel.Font = Enum.Font.GothamMedium
+	subtitleLabel.Font = Enum.Font.FredokaOne
 	subtitleLabel.Text = subtitle
-	subtitleLabel.TextColor3 = Color3.fromRGB(236, 240, 246)
+	subtitleLabel.TextColor3 = Color3.fromRGB(40, 46, 84)
 	subtitleLabel.TextScaled = true
 	subtitleLabel.Parent = gui
 end

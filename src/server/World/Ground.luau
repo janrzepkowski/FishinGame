@@ -153,6 +153,14 @@ end
 local function styleWater()
 	local terrain = Workspace.Terrain
 
+	-- Cukierkowa paleta terenu: soczysta trawa i żółty piasek jak z kreskówki.
+	-- Realistyczne, przygaszone kolory gryzły się z jaskrawym UI i rybami.
+	terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(116, 214, 92))
+	terrain:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(255, 226, 140))
+	-- Źdźbła trawy to detal realistyczny — przy gładkim, zabawkowym świecie
+	-- wyglądają jak szum. Przy okazji oszczędzają klatki na telefonach.
+	terrain.Decoration = false
+
 	-- Fale celowo drobne. Przy WaterWaveSize bliskim 1 spławik skacze
 	-- o kilka studów i nie da się odczytać, kiedy ryba bierze.
 	terrain.WaterWaveSize = 0.15
@@ -160,9 +168,11 @@ local function styleWater()
 	-- Wyższe odbicie i niższa przezroczystość niż na początku: przy 0.55
 	-- prześwitywało piaszczyste dno i woda czytała się jako muł.
 	-- Odbicie nieba jest tym, co odróżnia jezioro od kałuży.
-	terrain.WaterReflectance = 0.65
-	terrain.WaterTransparency = 0.3
-	terrain.WaterColor = Color3.fromRGB(16, 94, 134)
+	terrain.WaterReflectance = 0.45
+	terrain.WaterTransparency = 0.45
+	-- Turkus zamiast granatu: jezioro z basenu, nie z horroru. Większa
+	-- przezroczystość pokazuje żółte dno przy brzegu — płycizna „świeci".
+	terrain.WaterColor = Color3.fromRGB(30, 196, 226)
 end
 
 --[[

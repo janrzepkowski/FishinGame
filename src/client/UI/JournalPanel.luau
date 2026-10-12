@@ -17,6 +17,7 @@ local Fish = require(Shared.Config.Fish)
 local Format = require(Shared.Util.Format)
 local Types = require(Shared.Types)
 
+local FishCard = require(script.Parent.FishCard)
 local Theme = require(script.Parent.Theme)
 
 local JournalPanel = {}
@@ -28,76 +29,48 @@ local summaryLabel: TextLabel? = nil
 
 local lastRecordSignature = ""
 
-local function sectionHeader(text: string, order: number): TextLabel
-	return Theme.label({
-		Size = UDim2.new(1, 0, 0, 26),
-		LayoutOrder = order,
-		Font = Theme.FONT_BLACK,
-		TextSize = Theme.TEXT.body,
-		TextColor3 = Theme.COLOR.textMuted,
-		Text = text,
-	})
+local CARD = Vector2.new(96, 112)
+local MEDALS = {
+	Color3.fromRGB(255, 202, 40),
+	Color3.fromRGB(196, 210, 230),
+	Color3.fromRGB(232, 150, 90),
+}
+
+local function sectionHeader(text: string, color: Color3, order: number): Frame
+	-- Nagłówek sekcji jako mała, kolorowa pigułka — sekcje widać z daleka
+	-- przy przewijaniu, zamiast szarego napisu, który zlewa się z tłem.
+	return Theme.badge(text, color, { LayoutOrder = order, Size = UDim2.fromOffset(0, 28) })
 end
 
-local function holder(order: number): Frame
+local function holder(order: number, layout: Instance): Frame
 	return Theme.create("Frame", {
 		Size = UDim2.fromScale(1, 0),
 		AutomaticSize = Enum.AutomaticSize.Y,
 		LayoutOrder = order,
 		BackgroundTransparency = 1,
-	}, Theme.list(Theme.SPACE.xs)) :: Frame
+	}, layout) :: Frame
 end
 
 -- ---------------------------------------------------------------------------
 -- Bestiariusz
 -- ---------------------------------------------------------------------------
 
-local function buildBestiaryRow(
+local function buildBestiaryCard(
 	definition: Types.FishDefinition,
 	record: number?,
 	order: number
 ): Frame
-	local caught = record ~= nil
-	local accent = Fish.RARITY_COLOR[definition.rarity]
-
-	return Theme.create(
-		"Frame",
-		{
-			Name = definition.id,
-			Size = UDim2.new(1, -8, 0, 34),
-			LayoutOrder = order,
-			BackgroundColor3 = Theme.COLOR.panelAlt,
-			BackgroundTransparency = if caught then 0.3 else 0.68,
-			BorderSizePixel = 0,
-		},
-		Theme.corner(Theme.RADIUS.sm),
-		Theme.create("Frame", {
-			Size = UDim2.new(0, 3, 1, -12),
-			Position = UDim2.fromOffset(0, 6),
-			BackgroundColor3 = accent,
-			BackgroundTransparency = if caught then 0 else 0.6,
-			BorderSizePixel = 0,
-		}),
-		Theme.label({
-			Size = UDim2.new(0.56, -14, 1, 0),
-			Position = UDim2.fromOffset(12, 0),
-			Font = Theme.FONT_BOLD,
-			TextSize = Theme.TEXT.small,
-			-- Nieznane gatunki pokazujemy po nazwie, nie jako „???".
-			-- Lista celów działa tylko wtedy, gdy wiadomo, co się na niej
-			-- znajduje; zagadka zniechęca zamiast ciągnąć.
-			TextColor3 = if caught then Theme.COLOR.text else Theme.COLOR.textMuted,
-			Text = definition.displayName,
-		}),
-		Theme.label({
-			Size = UDim2.new(0.44, -12, 1, 0),
-			Position = UDim2.fromScale(0.56, 0),
-			TextSize = Theme.TEXT.micro,
-			TextXAlignment = Enum.TextXAlignment.Right,
-			TextColor3 = if caught then accent else Theme.COLOR.textMuted,
-			Text = if record then `rekord {Format.mass(record)}` else "niezłowiona",
-		})
-	) :: Frame
+	-- Niezłowione gatunki są ciemną sylwetką, ale Z NAZWĄ, nie jako „???".
+	-- Lista celów działa tylko wtedy, gdy wiadomo, co się na niej znajduje;
+	-- sylwetka dokłada ciekawość („jak ona wygląda?"), nazwa daje cel.
+	return FishCard.card(definition, {
+		size = CARD,
+		order = order,
+		locked = record == nil,
+		corner = Fish.RARITY_LABEL[definition.rarity],
+		footer = if record then `🏆 {Format.mass(record)}` else "???",
+		footerColor = if record then Theme.COLOR.coin else Theme.COLOR.textMuted,
+	})
 end
 
 -- ---------------------------------------------------------------------------
@@ -105,29 +78,44 @@ end
 -- ---------------------------------------------------------------------------
 
 local function buildRankRow(entry: Types.LeaderboardEntry, order: number): Frame
+	local medal = MEDALS[order]
+	local color = medal or Theme.COLOR.panelAlt
+
+	local place = Theme.icon(tostring(order), medal or Theme.COLOR.accent, 30, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 4, 0.5, 0),
+		TextSize = Theme.TEXT.small,
+	})
+
 	return Theme.create(
 		"Frame",
 		{
 			Name = `Rank{order}`,
-			Size = UDim2.new(1, -8, 0, 26),
+			Size = UDim2.new(1, -8, 0, 38),
 			LayoutOrder = order,
-			BackgroundTransparency = 1,
+			BackgroundColor3 = if medal then color:Lerp(Color3.new(1, 1, 1), 0.55) else color,
+			BorderSizePixel = 0,
 		},
+		Theme.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+		Theme.stroke(Theme.COLOR.stroke, 2),
+		place,
 		Theme.label({
-			Size = UDim2.fromScale(0.62, 1),
-			Position = UDim2.fromOffset(8, 0),
-			Font = if order <= 3 then Theme.FONT_BOLD else Theme.FONT,
-			TextSize = Theme.TEXT.small,
-			TextColor3 = if order <= 3 then Theme.COLOR.coin else Theme.COLOR.text,
-			Text = `{order}.  {entry.name}`,
+			Size = UDim2.new(0.6, -42, 1, 0),
+			Position = UDim2.fromOffset(42, 0),
+			Font = Theme.FONT_BOLD,
+			TextSize = Theme.TEXT.body,
+			TextColor3 = Theme.COLOR.text,
+			TextTruncate = Enum.TextTruncate.AtEnd,
+			Text = entry.name,
 		}),
 		Theme.label({
-			Size = UDim2.new(0.38, -12, 1, 0),
-			Position = UDim2.fromScale(0.62, 0),
-			TextSize = Theme.TEXT.small,
+			Size = UDim2.new(0.4, -14, 1, 0),
+			Position = UDim2.fromScale(0.6, 0),
+			Font = Theme.FONT_BLACK,
+			TextSize = Theme.TEXT.body,
 			TextXAlignment = Enum.TextXAlignment.Right,
-			TextColor3 = Theme.COLOR.coin,
-			Text = Format.coins(entry.value),
+			TextColor3 = Theme.COLOR.coinText,
+			Text = `$ {Format.coins(entry.value)}`,
 		})
 	) :: Frame
 end
@@ -144,34 +132,44 @@ end
 
 function JournalPanel.mount(parent: Instance)
 	local summary = Theme.label({
-		Size = UDim2.new(1, -46, 0, 16),
-		Position = UDim2.fromOffset(0, 28),
+		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.fromOffset(0, 48),
+		Font = Theme.FONT_BOLD,
 		TextSize = Theme.TEXT.small,
 		TextColor3 = Theme.COLOR.textMuted,
 		Text = "",
 	})
 
-	local bestiary = holder(2)
-	local ranks = holder(4)
+	local bestiary = holder(
+		2,
+		Theme.create("UIGridLayout", {
+			CellSize = UDim2.fromOffset(CARD.X, CARD.Y),
+			CellPadding = UDim2.fromOffset(Theme.SPACE.sm, Theme.SPACE.sm),
+			SortOrder = Enum.SortOrder.LayoutOrder,
+			HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		})
+	)
+	local ranks = holder(4, Theme.list(Theme.SPACE.xs))
 
 	local list = Theme.create(
 		"ScrollingFrame",
 		{
 			Name = "Sections",
-			Size = UDim2.new(1, 0, 1, -56),
-			Position = UDim2.fromOffset(0, 56),
+			Size = UDim2.new(1, 0, 1, -74),
+			Position = UDim2.fromOffset(0, 74),
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			ScrollBarThickness = 4,
-			ScrollBarImageColor3 = Theme.COLOR.stroke,
+			ScrollBarThickness = 6,
+			ScrollBarImageColor3 = Theme.COLOR.purple,
 			CanvasSize = UDim2.new(),
 			AutomaticCanvasSize = Enum.AutomaticSize.Y,
 			ScrollingDirection = Enum.ScrollingDirection.Y,
 		},
-		Theme.list(Theme.SPACE.sm),
-		sectionHeader("BESTIARIUSZ", 1),
+		Theme.padding(Theme.SPACE.xs),
+		Theme.list(Theme.SPACE.md),
+		sectionHeader("BESTIARIUSZ", Theme.COLOR.accent, 1),
 		bestiary,
-		sectionHeader("NAJLEPSI WĘDKARZE", 3),
+		sectionHeader("NAJLEPSI WĘDKARZE", Theme.COLOR.coin, 3),
 		ranks
 	) :: ScrollingFrame
 
@@ -189,18 +187,12 @@ function JournalPanel.mount(parent: Instance)
 			Name = "Journal",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(420, 460),
-			BackgroundTransparency = 0.02,
+			Size = UDim2.fromOffset(460, 500),
 			Visible = false,
 			Parent = parent,
 		},
-		Theme.padding(Theme.SPACE.lg, Theme.SPACE.md),
-		Theme.label({
-			Size = UDim2.new(1, -46, 0, 26),
-			Font = Theme.FONT_BLACK,
-			TextSize = Theme.TEXT.lead,
-			Text = "Dziennik",
-		}),
+		Theme.padding(Theme.SPACE.md),
+		Theme.header("Dziennik", Theme.COLOR.purple, { Size = UDim2.new(1, -48, 0, 42) }),
 		summary,
 		close,
 		list
@@ -214,9 +206,9 @@ function JournalPanel.mount(parent: Instance)
 
 		if device == "Phone" then
 			panel.Size =
-				UDim2.fromOffset(math.min(viewport.X - 20, 420), math.min(viewport.Y - 90, 460))
+				UDim2.fromOffset(math.min(viewport.X - 20, 460), math.min(viewport.Y - 60, 500))
 		else
-			panel.Size = UDim2.fromOffset(420, math.min(viewport.Y * 0.78, 500))
+			panel.Size = UDim2.fromOffset(460, math.min(viewport.Y * 0.82, 560))
 		end
 	end)
 end
@@ -246,10 +238,10 @@ function JournalPanel.update(profile: Types.Profile)
 			if record then
 				discovered += 1
 			end
-			buildBestiaryRow(definition, record, index).Parent = bestiary
+			buildBestiaryCard(definition, record, index).Parent = bestiary
 		end
 
-		summary.Text = `Odkryte gatunki: {discovered} / {#Fish.all()}`
+		summary.Text = `Odkryte gatunki: {discovered} / {#Fish.all()}  ·  złap je wszystkie!`
 	end
 end
 
@@ -266,6 +258,7 @@ function JournalPanel.setLeaderboard(entries: { Types.LeaderboardEntry })
 	if #entries == 0 then
 		Theme.label({
 			Size = UDim2.new(1, -8, 0, 24),
+			Font = Theme.FONT_BOLD,
 			TextSize = Theme.TEXT.small,
 			TextColor3 = Theme.COLOR.textMuted,
 			Text = "Ranking jeszcze się zbiera.",
@@ -279,15 +272,20 @@ function JournalPanel.setLeaderboard(entries: { Types.LeaderboardEntry })
 	end
 end
 
-function JournalPanel.toggle()
-	if root then
-		root.Visible = not root.Visible
+function JournalPanel.setVisible(visible: boolean)
+	local panel = root
+	if not panel then
+		return
 	end
+	if visible and not panel.Visible then
+		Theme.pop(panel, 0.7)
+	end
+	panel.Visible = visible
 end
 
-function JournalPanel.setVisible(visible: boolean)
+function JournalPanel.toggle()
 	if root then
-		root.Visible = visible
+		JournalPanel.setVisible(not root.Visible)
 	end
 end
 
