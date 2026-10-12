@@ -47,10 +47,24 @@ local LakeConfig = require(ReplicatedStorage.Shared.Config.Lake)
 
 local Ground = {}
 
--- Ląd sięga daleko poza jezioro, żeby horyzont nie kończył się urwiskiem.
--- Musi sięgać poniżej BED_BOTTOM, inaczej pod dnem jeziora jest pustka.
+--[[
+	Ląd sięga daleko poza jezioro, żeby horyzont nie kończył się urwiskiem.
+	Musi sięgać poniżej BED_BOTTOM, inaczej pod dnem jeziora jest pustka.
+
+	GÓRA WYPEŁNIENIA JEST NA y = -2, A NIE NA 0 — i to nie pomyłka.
+	Gładki teren Robloxa rysuje powierzchnię (i kolizję) pół woksela PONAD
+	w pełni zajętym wokselem. Wypełnienie do y = 0 dawało grunt na y = 2:
+	bruk placu i podłogi stoisk siedziały 1,6 studa pod trawą, a plac był
+	niewidoczny. Zmierzone raycastem: góra 0 -> grunt 2,00; góra -2 -> 0,02.
+	Cała reszta mapy (plac, stoiska, pomost, sceneria) zakłada grunt na 0.
+]]
 local LAND_SIZE = Vector3.new(480, 48, 520)
-local LAND_CENTER = Vector3.new(0, -24, -60)
+local LAND_CENTER = Vector3.new(0, -26, -60)
+
+-- Zajętość najwyższego woksela plaży. Z tego samego powodu co wyżej pełna
+-- zajętość dawała plażę na y = 2; 0,5 to grunt na 0, a 0,625 zostawia
+-- niski wał piasku (~0,5 studa) między trawą a wodą.
+local BEACH_TOP_OCCUPANCY = 0.625
 
 -- Pas piasku wokół lustra wody. Bez niego trawa wchodzi wprost do wody
 -- i brzeg wygląda jak wycięty nożyczkami.
@@ -128,8 +142,12 @@ local function writeLakeVoxels()
 				local isBed = worldY < bedY
 				local isWater = depth > 0 and worldY >= bedY and worldY < LakeConfig.SURFACE_Y
 
+				-- Najwyższy woksel plaży jest zajęty częściowo — patrz
+				-- BEACH_TOP_OCCUPANCY. Dna pod wodą to nie dotyczy.
+				local isBeachTop = isBed and depth <= 0 and worldY > bedY - VOXEL
+
 				materialRow[iz] = if isBed then Enum.Material.Sand else Enum.Material.Air
-				solidRow[iz] = if isBed then 1 else 0
+				solidRow[iz] = if not isBed then 0 elseif isBeachTop then BEACH_TOP_OCCUPANCY else 1
 				liquidRow[iz] = if isWater then 1 else 0
 			end
 

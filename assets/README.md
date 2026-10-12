@@ -32,3 +32,18 @@ a binarka nie.
 Przy edycji: git nie zmerguje dwóch zmian w tym samym `.rbxm`. Umowa jest taka,
 że jeden plik = jedna osoba naraz. Zgłoś na czacie, że bierzesz się za dany
 model, zanim zaczniesz.
+
+## Co tu jest
+
+| Plik | Skąd | Właściciel |
+|---|---|---|
+| `NaturePack.rbxm` | Creator Store, darmowa paczka „Low Poly Nature Pack (Trees, Rocks & Foliage)" autorstwa Veedubmike1, asset `127731233099210` | @janrzepkowski |
+
+`NaturePack.rbxm`: 29 modeli, 44 siatki. Audyt przed dodaniem: zero skryptów,
+zdarzeń zdalnych, dźwięków, dekali i tekstur PBR. W grze trafia do
+`ServerStorage.NaturePack`; modele stawia i przemalowuje na paletę
+`src/server/World/Scenery.luau`.
+
+Wtyczka Rojo nie przenosi `MeshId` przy synchronizacji na żywo. Jeśli po
+`rojo serve` modele są pustymi klockami, `Scenery` zbuduje scenerię awaryjną
+z prostych brył i powie o tym w Output — wtedy otwórz plik z `rojo build`.
