@@ -675,3 +675,33 @@ z `CastPose.bend`.
 Narzędzia do testów, działające tylko w Studio — atrybuty na Workspace:
 `DevFastBite` (branie po chwili), `DevClockTime` (zamrożona godzina);
 pogodę można wymusić, ustawiając `Weather` ręcznie na serwerze.
+
+## Modele ryb i świętowanie połowu
+
+Każdy gatunek ma model z prymitywów opisany w `shared/Util/FishModel.luau`
+(kształt, kolory, wąsy, pręgi). Ten sam model wyskakuje z wody po
+wyholowaniu (`client/Effects/CatchFx`) i jest pokazywany w ekwipunku oraz
+bestiariuszu (`client/UI/FishIcon`, `ViewportFrame`) — zasada 12 z
+`CLAUDE.md`. Niezłowiony gatunek to w bestiariuszu ciemna sylwetka.
+
+`CatchFx` skaluje świętowanie rzadkością: pospolita ryba dostaje iskry,
+rzadsze i rekordy — konfetti, poświatę i dłuższy pokaz. To nagroda za
+połów; nie ma tu losowania ani niczego do kupienia.
+
+Tabliczki w świecie (`BillboardGui`) rodzicujemy do części, której dotyczą,
+i nie używamy `AlwaysOnTop` — takie w testach nie rysowały się wcale. Gdy
+coś ma być widać zza przeszkody (dymek sprzedawcy pod markizą), wysuwamy
+to ku kamerze osią Z w `StudsOffset`.
+
+## Pora i pogoda zmieniają połów
+
+Część gatunków ma w katalogu `boost` (`night`, `rain`): mnożnik wagi
+w losowaniu, liczony przez `Fish.conditionWeight`. Bestiariusz podpowiada
+przy niezłowionych gatunkach, kiedy ich szukać (`Fish.hint`).
+
+## Wprowadzenie nowego gracza
+
+`client/Controllers/TutorialController.luau` pokazuje krótkie podpowiedzi
+w chwili, gdy są potrzebne (pierwszy zamach, czekanie, branie, walka,
+pierwsza sprzedaż), każdą raz na sesję, i milknie po trzech złowionych
+rybach. Stan jest w pamięci, nie w profilu.

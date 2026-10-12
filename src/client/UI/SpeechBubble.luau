@@ -23,8 +23,8 @@ local MAX_DISTANCE = 70
 local WIDTH = 250
 local FADE = 0.25
 -- O ile studów dymek jest wysunięty ku kamerze. Lada z markizą wystaje
--- ok. 4 study przed sprzedawcę.
-local FORWARD = 6
+-- ok. 4 study przed sprzedawcę; przy 6 markiza ucinała jeszcze górę dymka.
+local FORWARD = 9
 
 -- Jeden dymek na postać: nowa kwestia zastępuje poprzednią, zamiast
 -- układać się w stos nad głową.
@@ -52,7 +52,7 @@ function SpeechBubble.show(adornee: BasePart, speaker: string, text: string, dur
 	-- pod którymi stoi sprzedawca — z każdej strony, z której patrzy gracz.
 	-- `AlwaysOnTop` nie używamy: w testach takie dymki nie pojawiały się
 	-- na zrzutach wcale, a zwykłe — tak.
-	billboard.StudsOffset = Vector3.new(0, 0.6, FORWARD)
+	billboard.StudsOffset = Vector3.new(0, -0.4, FORWARD)
 	billboard.LightInfluence = 0
 	billboard.ResetOnSpawn = false
 
