@@ -53,6 +53,7 @@ export type Rig = {
 local ROD_ATTRIBUTE = "RodId"
 local IK_NAME = "FishinGameOffHand"
 local OFF_HAND_NAME = "OffHandGrip"
+local TIP_WELD_NAME = "TipWeld"
 
 --[[
 	Oś obrotu barku.
@@ -213,6 +214,48 @@ function AnglerRig.new(character: Model): Rig
 		active.Enabled = true
 	end
 
+	-- Spoina szczytówki i jej wyjściowe C0, zapamiętane przy pierwszym
+	-- użyciu. Zmiana wędki to nowe narzędzie, więc i nowa spoina.
+	local tipWeld: Weld? = nil
+	local tipBase = CFrame.identity
+
+	--[[
+		Ugina szczytówkę o `angle` radianów wokół jej NASADY.
+
+		Obrót wokół środka części wyłamałby kij w połowie szczytówki
+		i odsunął ją od reszty. Przesuwamy więc oś na tylny koniec
+		(+Z/2 w układzie części), obracamy i wracamy.
+	]]
+	local function bendRod(tool: Tool?, angle: number)
+		local weld = tipWeld
+		if not weld or not weld.Parent or (tool and not weld:IsDescendantOf(tool)) then
+			weld = nil
+			tipWeld = nil
+
+			local found = tool and tool:FindFirstChild(TIP_WELD_NAME, true)
+			if found and found:IsA("Weld") then
+				weld = found
+				tipWeld = found
+				tipBase = found.C0
+			end
+		end
+
+		if not weld then
+			return
+		end
+
+		local part = weld.Part1
+		if not part then
+			return
+		end
+
+		local half = part.Size.Z / 2
+		weld.C0 = tipBase
+			* CFrame.new(0, 0, half)
+			* CFrame.Angles(-angle, 0, 0)
+			* CFrame.new(0, 0, -half)
+	end
+
 	local function resetJoints()
 		applyPose(character, CFrame.identity, CFrame.identity, CFrame.identity, CFrame.identity)
 	end
@@ -233,6 +276,7 @@ function AnglerRig.new(character: Model): Rig
 				posed = false
 				resetJoints()
 				setOffHand(nil, false)
+				bendRod(tool, 0)
 			end
 			return
 		end
@@ -272,6 +316,7 @@ function AnglerRig.new(character: Model): Rig
 		)
 
 		setOffHand(tool, twoHanded)
+		bendRod(tool, CastPose.bend(phase, elapsed, state.power, state.tension, state.surging))
 	end
 
 	function self.destroy()

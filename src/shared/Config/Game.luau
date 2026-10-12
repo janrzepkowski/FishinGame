@@ -163,12 +163,28 @@ local Game = {
 	TENSION_ATTRIBUTE_STEP = 0.05,
 
 	-- ---------------------------------------------------------------------
+	-- Pora dnia i pogoda
+	-- ---------------------------------------------------------------------
+	-- Ile sekund trwa doba w grze. 12 minut: gracz, który zostanie na
+	-- kwadrans, zobaczy i zachód, i noc, a żadna pora nie zdąży znudzić.
+	DAY_LENGTH_SECONDS = 720,
+	-- Atrybut na Workspace z bieżącą pogodą ("Clear" / "Rain").
+	WEATHER_ATTRIBUTE = "Weather",
+	-- Co ile sekund serwer losuje pogodę na nowo i z jaką szansą na deszcz.
+	WEATHER_INTERVAL_MIN = 150,
+	WEATHER_INTERVAL_MAX = 330,
+	RAIN_CHANCE = 0.35,
+
+	-- ---------------------------------------------------------------------
 	-- Narzędzia deweloperskie
 	-- ---------------------------------------------------------------------
 	-- Atrybut na Workspace. Działa TYLKO w Studio: branie po chwili i bez
 	-- skubnięć, żeby dało się testować walkę bez czekania na każdy rzut.
 	DEV_FAST_BITE_ATTRIBUTE = "DevFastBite",
 	DEV_FAST_BITE_DELAY = 0.6,
+	-- Atrybut na Workspace (liczba 0..24). Działa TYLKO w Studio: zamraża
+	-- godzinę w grze — do zrzutów ekranu i testów nocy bez czekania.
+	DEV_CLOCK_ATTRIBUTE = "DevClockTime",
 	STAND_FISH_BUYER = "FishBuyer",
 	STAND_ROD_SHOP = "RodShop",
 }

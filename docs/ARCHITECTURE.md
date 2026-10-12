@@ -649,3 +649,28 @@ serwer (`Scenery.buildLakeBed`) z tych samych modeli co roślinność brzegowa.
 Ławice i ryby wyskakujące nad wodę rysuje każdy klient u siebie
 (`client/Effects/LakeLife.luau`) — są czysto dekoracyjne i nie mają związku
 z tym, co gracz złowi.
+
+## Pora dnia, pogoda i dźwięk
+
+**Pora dnia nie idzie przez sieć.** Serwer i każdy klient liczą godzinę
+z tego samego zsynchronizowanego zegara (`Environment.clockAt` na
+`workspace:GetServerTimeNow()`), więc cykl nie kosztuje ani jednego pakietu.
+Doba trwa `DAY_LENGTH_SECONDS` (12 minut).
+
+**Pogodę losuje serwer** (`WeatherService`) i ogłasza atrybutem `Weather`
+na Workspace — musi być jedna dla wszystkich, bo wpływa na łowienie:
+w deszczu branie przychodzi szybciej, a nocą jest trochę więcej szczęścia
+(`Environment.biteDelayMultiplier`, `luckMultiplier`). Deszcz, chmury, mgłę
+i rozjaśnianie nocy robi klient (`EnvironmentController`).
+
+**Dźwięki** to assety z Creator Store, spisane w `shared/Config/Audio.luau`.
+Gra je klient (`Effects/Sfx`): jednorazowe w miejscu zdarzenia, pętle tła
+z głośnością zależną od odległości od jeziora i od pogody.
+
+**Ugięcie kija:** szczytówka wędki trzyma się na `Weld` (nie
+`WeldConstraint`), a `AnglerRig` obraca jej `C0` wokół nasady o kąt
+z `CastPose.bend`.
+
+Narzędzia do testów, działające tylko w Studio — atrybuty na Workspace:
+`DevFastBite` (branie po chwili), `DevClockTime` (zamrożona godzina);
+pogodę można wymusić, ustawiając `Weather` ręcznie na serwerze.

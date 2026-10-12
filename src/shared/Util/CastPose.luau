@@ -141,4 +141,37 @@ function CastPose.fighting(
 		HOLD_WRIST + 0.35 * pull + shake
 end
 
+--[[
+	Ugięcie szczytówki w radianach; dodatnie = czubek w dół, ku wodzie.
+
+	Kij jest jedynym miejscem, w którym napięcie żyłki widać na samej
+	postaci: prosty kij przy pełnym pasku napięcia wygląda jak zepsuta
+	animacja. Przy szarpnięciu ryby czubek dodatkowo drga.
+
+	`phase` to nazwa fazy jak w `Types.FishingPhase`; nieznana faza
+	(w tym `Idle`) daje kij prosty.
+]]
+function CastPose.bend(
+	phase: string,
+	elapsed: number,
+	power: number,
+	tension: number,
+	surging: boolean
+): number
+	if phase == "Fighting" then
+		local pull = math.clamp(tension, 0, 1)
+		local shake = if surging then math.sin(elapsed * 34) * 0.08 else 0
+		return 0.12 + 0.5 * pull + shake
+	elseif phase == "Biting" then
+		-- Ryba ciągnie, ale żyłka nie jest jeszcze napięta: wyraźne
+		-- przygięcie z gasnącym drganiem.
+		return 0.22 + math.sin(elapsed * 22) * 0.1 * math.exp(-elapsed * 1.5)
+	elseif phase == "Waiting" and elapsed < WHIP_TIME + SETTLE_TIME then
+		-- Wymach: kij spóźnia się za ręką i odgina w tył, potem wraca.
+		local t = elapsed / (WHIP_TIME + SETTLE_TIME)
+		return -(0.25 + 0.2 * math.clamp(power, 0, 1)) * math.sin(t * math.pi) * (1 - t)
+	end
+	return 0
+end
+
 return table.freeze(CastPose)

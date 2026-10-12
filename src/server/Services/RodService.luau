@@ -110,13 +110,24 @@ local function buildRod(definition: RodDefinition): Tool
 		end
 		part.Parent = tool
 
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = handle
-		weld.Part1 = part
-		weld.Parent = part
-
 		if piece.name == "TipSection" then
+			-- Szczytówka trzyma się na `Weld`, nie `WeldConstraint`: klient
+			-- ugina ją pod ciężarem ryby, obracając `C0` (patrz AnglerRig),
+			-- a `WeldConstraint` nie ma przesunięcia, którym dałoby się
+			-- sterować. Rączka stoi w zerze, więc CFrame części to od razu C0.
+			local weld = Instance.new("Weld")
+			weld.Name = "TipWeld"
+			weld.Part0 = handle
+			weld.Part1 = part
+			weld.C0 = piece.cframe
+			weld.Parent = part
+
 			tipSection = part
+		else
+			local weld = Instance.new("WeldConstraint")
+			weld.Part0 = handle
+			weld.Part1 = part
+			weld.Parent = part
 		end
 	end
 

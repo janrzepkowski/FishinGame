@@ -30,6 +30,9 @@ local Workspace = game:GetService("Workspace")
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local LakeConfig = require(Shared.Config.Lake)
 
+local Ripple = require(script.Parent.Ripple)
+local Sfx = require(script.Parent.Sfx)
+
 local Bobber = {}
 
 export type Float = {
@@ -66,35 +69,6 @@ local function getContainer(): Folder
 	folder.Parent = Workspace
 	container = folder
 	return folder
-end
-
---[[ Rozchodzący się krąg na wodzie. Sam się sprząta. ]]
-local function ripple(position: Vector3, maxDiameter: number, life: number)
-	local ring = Instance.new("Part")
-	ring.Name = "Ripple"
-	ring.Shape = Enum.PartType.Cylinder
-	-- Walec leży wzdłuż osi X — obrót wokół Z kładzie go płasko na wodzie.
-	ring.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
-	ring.Size = Vector3.new(0.08, 0.6, 0.6)
-	ring.Anchored = true
-	ring.CanCollide = false
-	ring.CanQuery = false
-	ring.CanTouch = false
-	ring.Material = Enum.Material.Neon
-	ring.Color = Color3.fromRGB(198, 232, 244)
-	ring.Transparency = 0.45
-	ring.Parent = getContainer()
-
-	TweenService
-		:Create(ring, TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = Vector3.new(0.05, maxDiameter, maxDiameter),
-			Transparency = 1,
-		})
-		:Play()
-
-	task.delay(life + 0.05, function()
-		ring:Destroy()
-	end)
 end
 
 --[[
@@ -270,7 +244,8 @@ local function create(getCharacter: () -> Model?): Float
 					line.CurveSize1 = -(target - origin).Magnitude * 0.12
 				end
 
-				ripple(target, 7, 1.1)
+				Ripple.spawn(target, 7, 1.1)
+				Sfx.playAt("cast", target)
 				startFloating()
 				return
 			end
@@ -297,7 +272,8 @@ local function create(getCharacter: () -> Model?): Float
 		end
 
 		nibbleAt = os.clock()
-		ripple(Vector3.new(float.Position.X, restY, float.Position.Z), 2.6, 0.5)
+		Sfx.playAt("nibble", float.Position)
+		Ripple.spawn(Vector3.new(float.Position.X, restY, float.Position.Z), 2.6, 0.5)
 	end
 
 	--[[ Szarpnięcie w momencie brania. Poza paskiem UI to jedyna informacja
@@ -322,10 +298,11 @@ local function create(getCharacter: () -> Model?): Float
 			beam.CurveSize1 = 0
 		end
 
-		ripple(float.Position, 5, 0.7)
+		Ripple.spawn(float.Position, 5, 0.7)
+		Sfx.playAt("bite", float.Position)
 		task.delay(0.35, function()
 			if bobber == float then
-				ripple(float.Position, 6, 0.8)
+				Ripple.spawn(float.Position, 6, 0.8)
 			end
 		end)
 	end
@@ -385,7 +362,8 @@ local function create(getCharacter: () -> Model?): Float
 		end
 
 		local origin = float.Position
-		ripple(origin, 12, 0.9)
+		Ripple.spawn(origin, 12, 0.9)
+		Sfx.playAt("splash", origin)
 
 		for index = 1, 8 do
 			local drop = Instance.new("Part")

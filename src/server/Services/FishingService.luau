@@ -43,6 +43,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local Cast = require(ReplicatedStorage.Shared.Util.Cast)
+local Environment = require(ReplicatedStorage.Shared.Util.Environment)
 local Fight = require(ReplicatedStorage.Shared.Util.Fight)
 local Fish = require(ReplicatedStorage.Shared.Config.Fish)
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
@@ -56,6 +57,7 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local Analytics = require(script.Parent.Analytics)
 local DataService = require(script.Parent.DataService)
 local RodService = require(script.Parent.RodService)
+local WeatherService = require(script.Parent.WeatherService)
 
 type CastPhase = "Waiting" | "Biting" | "Fighting"
 
@@ -479,7 +481,9 @@ local function onRequestCast(player: Player, rawPower: unknown)
 	states[player] = {
 		castId = castId,
 		phase = "Waiting",
-		fish = pickFish(rod.luck * depthLuck),
+		-- Noc dokłada trochę szczęścia — trzeci czynnik obok wędki
+		-- i głębokości, wchodzący w tę samą potęgę rzadkości.
+		fish = pickFish(rod.luck * depthLuck * Environment.luckMultiplier(WeatherService.clock())),
 		reelWindow = rod.reelWindow,
 		biteAt = 0,
 		nibbleAt = 0,
@@ -513,6 +517,8 @@ local function onRequestCast(player: Player, rawPower: unknown)
 		then GameConfig.DEV_FAST_BITE_DELAY
 		else generator:NextNumber(GameConfig.MIN_BITE_DELAY, GameConfig.MAX_BITE_DELAY)
 			* rod.biteSpeed
+			-- W deszczu ryby biorą szybciej.
+			* Environment.biteDelayMultiplier(WeatherService.current())
 
 	-- Skubnięcia: liczbę i momenty losujemy od razu, przy zarzuceniu.
 	local rolls: { number } = {}

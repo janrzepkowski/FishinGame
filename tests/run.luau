@@ -23,6 +23,7 @@ local t = require("./harness")
 
 local Cast = require("../src/shared/Util/Cast")
 local CastPose = require("../src/shared/Util/CastPose")
+local Environment = require("../src/shared/Util/Environment")
 local Fight = require("../src/shared/Util/Fight")
 local Format = require("../src/shared/Util/Format")
 local Lake = require("../src/shared/Config/Lake")
@@ -472,5 +473,73 @@ for step = 0, 40 do
 	check(CastPose.biting(time))
 end
 t.isTrue("katy stawow zostaja w rozsadnym zakresie", sane)
+
+--[[ Ugięcie kija. ]]
+t.near("kij bez akcji jest prosty", CastPose.bend("Idle", 1, 1, 1, true), 0)
+t.near("po rzucie kij sie prostuje", CastPose.bend("Waiting", 5, 1, 0, false), 0)
+t.isTrue(
+	"w walce kij jest ugiety nawet bez napiecia",
+	CastPose.bend("Fighting", 0, 0, 0, false) > 0
+)
+t.isTrue(
+	"wieksze napiecie to mocniejsze ugiecie",
+	CastPose.bend("Fighting", 0, 0, 1, false) > CastPose.bend("Fighting", 0, 0, 0.3, false)
+)
+t.isTrue("branie przygina kij", CastPose.bend("Biting", 0, 0, 0, false) > 0.1)
+t.isTrue("przy wymachu kij odgina sie w tyl", CastPose.bend("Waiting", 0.1, 1, 0, false) < 0)
+
+local bendSane = true
+for step = 0, 40 do
+	for _, phase in { "Idle", "Charging", "Waiting", "Biting", "Fighting", "?" } do
+		local bend = CastPose.bend(phase, step * 0.05, 9, 9, true)
+		if bend ~= bend or math.abs(bend) > 0.9 then
+			bendSane = false
+		end
+	end
+end
+t.isTrue("ugiecie nie lamie kija", bendSane)
+
+-- ---------------------------------------------------------------------------
+t.suite("Environment — pora dnia i pogoda")
+
+t.near("doba zaczyna sie o polnocy", Environment.clockAt(0, 720), 0)
+t.near("polowa doby to poludnie", Environment.clockAt(360, 720), 12)
+t.near("zegar zawija sie po pelnej dobie", Environment.clockAt(720 + 180, 720), 6)
+t.near("zerowa dlugosc doby nie dzieli przez zero", Environment.clockAt(100, 0), 12)
+
+t.isTrue("polnoc to noc", Environment.isNight(0))
+t.isTrue("23:00 to noc", Environment.isNight(23))
+t.isFalse("poludnie to dzien", Environment.isNight(12))
+t.isFalse("zlota godzina to jeszcze dzien", Environment.isNight(17.5))
+
+t.near("w poludnie nie rozjasniamy obrazu", Environment.darkness(12), 0)
+t.near("w srodku nocy rozjasniamy w pelni", Environment.darkness(1), 1)
+t.near("o zmierzchu ciemnosc dopiero rusza", Environment.darkness(20), 0)
+t.near("o swicie ciemnosc juz zeszla", Environment.darkness(5.5), 0)
+
+--[[ Ekspozycja nie może skakać: sąsiednie chwile różnią się o włos,
+     także przy przejściu przez północ. ]]
+local smooth = true
+for step = 0, 2400 do
+	local now = Environment.darkness(step / 100)
+	local later = Environment.darkness(((step + 1) / 100) % 24)
+	if math.abs(later - now) > 0.011 then
+		smooth = false
+	end
+end
+t.isTrue("ciemnosc narasta i opada plynnie", smooth)
+
+t.isTrue("w deszczu branie przychodzi szybciej", Environment.biteDelayMultiplier("Rain") < 1)
+t.near("przy pogodzie bez zmian", Environment.biteDelayMultiplier("Clear"), 1)
+t.near("nieznana pogoda nic nie zmienia", Environment.biteDelayMultiplier("Tornado"), 1)
+t.isTrue("noca jest wiecej szczescia", Environment.luckMultiplier(1) > 1)
+t.near("w dzien bez zmian", Environment.luckMultiplier(12), 1)
+--[[ Szczęście wchodzi w potęgę rzadkości (do czwartej). Premia nocna musi
+     zostać skromna, inaczej legendarne ryby łowiłoby się hurtowo. ]]
+t.isTrue("premia nocna nie wysadza ekonomii", Environment.luckMultiplier(1) ^ 4 < 1.6)
+
+t.equal("niski los to deszcz", Environment.pickWeather(0.1, 0.35), "Rain")
+t.equal("wysoki los to pogoda", Environment.pickWeather(0.9, 0.35), "Clear")
+t.equal("szansa zero nigdy nie daje deszczu", Environment.pickWeather(0, 0), "Clear")
 
 t.finish()

@@ -47,9 +47,12 @@ Zasady użycia:
 
 ## Nastrój i światło
 
-**Stała złota godzina.** Słońce nisko, długie miękkie cienie, ciepły tint.
-Cykl dnia i nocy to osobna funkcja na później — do tego czasu pora się nie
-zmienia.
+**Złota godzina jest punktem odniesienia**, ale pora się zmienia: doba
+w grze trwa 12 minut, a pogoda przechodzi między słońcem a deszczem.
+Wartości poniżej stroiliśmy przy godzinie 17,5 i to przy niej oceniamy
+kolory; nocą obraz jest rozjaśniany, żeby dało się łowić, a w deszczu
+chmury są stalowe, nie białe. Do zrzutów porównawczych godzinę zamraża
+się w Studio atrybutem `DevClockTime` na Workspace.
 
 Wartości wdrożone w fazie F2, dobrane na zrzutach z kamer z `cameras.json`:
 

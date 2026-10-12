@@ -33,7 +33,10 @@ local FishingService = require(script.Services.FishingService)
 local LeaderboardService = require(script.Services.LeaderboardService)
 local RodService = require(script.Services.RodService)
 local ShopService = require(script.Services.ShopService)
+local WeatherService = require(script.Services.WeatherService)
 
+-- Pogoda przed łowieniem: FishingService pyta o nią przy każdym rzucie.
+WeatherService.start()
 RodService.start()
 FishingService.start()
 ShopService.start()

@@ -15,11 +15,13 @@
 ]]
 
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
 local LakeConfig = require(Shared.Config.Lake)
+
+local Ripple = require(script.Parent.Ripple)
+local Sfx = require(script.Parent.Sfx)
 
 local LakeLife = {}
 
@@ -217,31 +219,6 @@ local function updateSchools()
 	end
 end
 
-local function ripple(position: Vector3, maxDiameter: number, life: number)
-	local ring = Instance.new("Part")
-	ring.Name = "Ripple"
-	ring.Shape = Enum.PartType.Cylinder
-	-- Walec leży wzdłuż osi X — obrót wokół Z kładzie go płasko na wodzie.
-	ring.CFrame = CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90))
-	ring.Size = Vector3.new(0.08, 0.6, 0.6)
-	decor(ring)
-	ring.Material = Enum.Material.Neon
-	ring.Color = Color3.fromRGB(198, 232, 244)
-	ring.Transparency = 0.45
-	ring.Parent = getContainer()
-
-	TweenService
-		:Create(ring, TweenInfo.new(life, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-			Size = Vector3.new(0.05, maxDiameter, maxDiameter),
-			Transparency = 1,
-		})
-		:Play()
-
-	task.delay(life + 0.05, function()
-		ring:Destroy()
-	end)
-end
-
 --[[
 	Ryba wyskakuje nad wodę: łuk, krąg przy wyjściu i krąg przy wejściu.
 
@@ -262,7 +239,7 @@ local function jump()
 	local start = Vector3.new(x, LakeConfig.SURFACE_Y, z)
 	local startedAt = os.clock()
 
-	ripple(start, 5, 0.8)
+	Ripple.spawn(start, 5, 0.8)
 
 	local connection: RBXScriptConnection
 	connection = RunService.RenderStepped:Connect(function()
@@ -270,7 +247,8 @@ local function jump()
 
 		if t >= 1 then
 			connection:Disconnect()
-			ripple(start + forward * length, 7, 1)
+			Ripple.spawn(start + forward * length, 7, 1)
+			Sfx.playAt("splash", start + forward * length, 0.6)
 			body:Destroy()
 			tail:Destroy()
 			return
