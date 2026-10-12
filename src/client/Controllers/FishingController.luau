@@ -31,6 +31,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Cast = require(Shared.Util.Cast)
+local CastPose = require(Shared.Util.CastPose)
 local GameConfig = require(Shared.Config.Game)
 local Net = require(Shared.Net)
 local Rods = require(Shared.Config.Rods)
@@ -38,7 +39,6 @@ local Spatial = require(Shared.Util.Spatial)
 local Types = require(Shared.Types)
 
 local Bobber = require(script.Parent.Parent.Effects.Bobber)
-local CastAnimation = require(script.Parent.Parent.Effects.CastAnimation)
 local CastMeter = require(script.Parent.Parent.UI.CastMeter)
 local Hotbar = require(script.Parent.Parent.UI.Hotbar)
 local Hud = require(script.Parent.Parent.UI.Hud)
@@ -47,13 +47,22 @@ local ROD_ATTRIBUTE = "RodId"
 
 local FishingController = {}
 
-export type Phase = "Idle" | "Charging" | "Waiting" | "Biting" | "Fighting"
+--[[ `Casting` to chwila między puszczeniem przycisku a odpowiedzią serwera:
+     rzut wysłany, ale jeszcze niepotwierdzony. ]]
+export type Phase = "Idle" | "Charging" | "Casting" | "Waiting" | "Biting" | "Fighting"
 
 local player = Players.LocalPlayer
 local phase: Phase = "Idle"
 -- os.clock() początku zamachu. Ten sam moment dostaje pasek mocy, więc
 -- moc przy puszczeniu jest dokładnie tą, którą gracz widział.
 local chargeStartedAt: number? = nil
+-- Moc ostatniego rzutu — poza postaci bierze z niej głębokość zamachu.
+local castPower = 0
+-- Rośnie przy każdym rzucie; opóźniony timeout rozpoznaje po nim, czy
+-- nadal dotyczy TEGO rzutu.
+local castSerial = 0
+-- Ile czekamy na `CastStarted`, zanim uznamy, że serwer rzut odrzucił.
+local CAST_CONFIRM_TIMEOUT = 1
 local phaseListeners: { (Phase) -> () } = {}
 local reeling = false
 
@@ -164,7 +173,11 @@ end
 	obsługiwane przez `setReeling`.
 ]]
 function FishingController.press()
-	if phase == "Fighting" or phase == "Charging" then
+	-- Wciśnięcie coś znaczy tylko w trzech fazach: przed rzutem zaczyna
+	-- zamach, a w czekaniu i przy braniu podcina. W pozostałych (zamach
+	-- już trwa, rzut czeka na serwer, walka) nie robi nic.
+	local current: Phase = phase
+	if current ~= "Idle" and current ~= "Waiting" and current ~= "Biting" then
 		return
 	end
 
@@ -187,10 +200,11 @@ end
 --[[
 	Puszczenie głównego przycisku: koniec zamachu, rzut.
 
-	Wracamy do `Idle` od razu, nie czekając na serwer. Jeśli rzut przejdzie,
-	`CastStarted` przestawi fazę na `Waiting`; jeśli nie (za daleko od wody,
-	pełna torba), gracz dostaje komunikat i może próbować ponownie, zamiast
-	stać z zamrożonym paskiem.
+	Przechodzimy w `Casting`: postać zastyga w zamachu do odpowiedzi serwera.
+	Jeśli rzut przejdzie, `CastStarted` przestawi fazę na `Waiting` i ręka
+	wykona wymach bez przerwy w ruchu. Jeśli nie (za daleko od wody, pełna
+	torba), po krótkim czasie wracamy do `Idle` — gracz dostaje komunikat
+	i może próbować ponownie, zamiast stać z wędką nad głową.
 ]]
 function FishingController.release()
 	local startedAt = chargeStartedAt
@@ -200,10 +214,31 @@ function FishingController.release()
 
 	chargeStartedAt = nil
 	local power = Cast.powerAt(os.clock() - startedAt, GameConfig.CAST_POWER_PERIOD)
+	castPower = power
+	castSerial += 1
+	local serial = castSerial
 
-	setPhase("Idle")
+	setPhase("Casting")
 	CastMeter.hide()
 	Net.RequestCast:FireServer(power)
+
+	task.delay(CAST_CONFIRM_TIMEOUT, function()
+		-- Jawny typ: analiza zawęziła `phase` do "Charging" na początku
+		-- funkcji i nie wie, że do tej chwili zdążyło się zmienić.
+		local current: Phase = phase
+		if current == "Casting" and castSerial == serial then
+			setPhase("Idle")
+		end
+	end)
+end
+
+function FishingController.getPhase(): Phase
+	return phase
+end
+
+--[[ Moc ostatniego rzutu, 0..1. ]]
+function FishingController.getCastPower(): number
+	return castPower
 end
 
 --[[ Przerywa zamach bez rzutu — np. gdy gracz schowa wędkę w jego trakcie. ]]
@@ -287,8 +322,6 @@ local function watchCharacter(character: Model)
 end
 
 function FishingController.start()
-	CastAnimation.start()
-
 	if player.Character then
 		watchCharacter(player.Character)
 	end
@@ -347,7 +380,6 @@ function FishingController.start()
 		chargeStartedAt = nil
 		setPhase("Idle")
 		CastMeter.hide()
-		CastAnimation.reset()
 		Bobber.clear()
 		Hud.setDepth(nil)
 	end)
@@ -368,17 +400,19 @@ function FishingController.start()
 		local rod = if typeof(rodId) == "string" then Rods.find(rodId) else nil
 		local flightTime = Cast.flightTime(distance, if rod then rod.castRange else distance)
 
-		-- Spławik wylatuje w momencie puszczenia żyłki przez animację,
-		-- a nie na starcie zamachu — inaczej wyprzedzałby ruch ręki.
-		CastAnimation.playCast(function()
-			Bobber.launch(landing, flightTime)
+		-- Spławik wylatuje w momencie puszczenia żyłki, a nie na starcie
+		-- wymachu — inaczej wyprzedzałby ruch ręki. Wymach rysuje
+		-- `AnglerController` z tej samej zmiany fazy.
+		task.delay(CastPose.RELEASE_DELAY, function()
+			if phase == "Waiting" then
+				Bobber.launch(landing, flightTime)
+			end
 		end)
 	end)
 
 	Net.BiteStarted.OnClientEvent:Connect(function(window: number)
 		setPhase("Biting")
 		CastMeter.showBite(window)
-		CastAnimation.playBite()
 		Bobber.dip()
 	end)
 
@@ -398,7 +432,6 @@ function FishingController.start()
 		setPhase("Idle")
 		reeling = false
 		CastMeter.showResult(result)
-		CastAnimation.reset()
 
 		if result.outcome == "Caught" then
 			Bobber.splash()

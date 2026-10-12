@@ -26,6 +26,7 @@ local Shared = ReplicatedStorage:WaitForChild("Shared")
 local Net = require(Shared.Net)
 local Types = require(Shared.Types)
 
+local AnglerController = require(script.Controllers.AnglerController)
 local FishingController = require(script.Controllers.FishingController)
 local ProfileCache = require(script.ProfileCache)
 local ShopController = require(script.Controllers.ShopController)
@@ -110,6 +111,8 @@ end)
 ProfileCache.start()
 Underwater.start()
 FishingController.start()
+-- Po FishingController: czyta z niego fazę lokalnego gracza.
+AnglerController.start()
 ShopController.start()
 
 Net.RequestProfile:FireServer()

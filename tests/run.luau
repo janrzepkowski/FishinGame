@@ -22,6 +22,7 @@
 local t = require("./harness")
 
 local Cast = require("../src/shared/Util/Cast")
+local CastPose = require("../src/shared/Util/CastPose")
 local Fight = require("../src/shared/Util/Fight")
 local Format = require("../src/shared/Util/Format")
 local Lake = require("../src/shared/Config/Lake")
@@ -53,35 +54,87 @@ t.isTrue("srodek jest nad woda", Lake.isOverWater(point(0, -140)))
 t.isFalse("plac nie jest nad woda", Lake.isOverWater(point(0, 20)))
 
 --[[
-	NAJWAŻNIEJSZY TEST W PLIKU.
-
-	Odtwarza kolejność wypełnień z `Ground.writeLakeVoxels` i sprawdza, że
-	daje dokładnie to samo co `depthAt`. Rozjazd tych dwóch liczb oznacza,
-	że gra pokazuje w HUD-zie inną głębokość, niż ma teren — i właśnie tak
-	powstało bagno, po którym dało się chodzić.
+	KSZTAŁT. Jezioro to zaokrąglona, trójpłatowa zatoka opisana promieniem
+	zależnym od kierunku. Teren powstaje wprost z `depthAt` (builder pyta tę
+	funkcję o każdy woksel), więc nie ma już drugiej definicji, z którą
+	trzeba by ją porównywać — sprawdzamy własności samego kształtu.
 ]]
-local function terrainDepth(x: number, z: number): number
-	local depth = 0
-	for _, shelf in Lake.SHELVES do
-		local half = Lake.HALF_SIZE - shelf.inset
-		local dx = math.abs(x - Lake.CENTER_X)
-		local dz = math.abs(z - Lake.CENTER_Z)
-		if math.max(dx, dz) <= half then
-			depth = shelf.depth
+local shoreZ = Lake.CENTER_Z + Lake.radiusAt(Lake.SHORE_ANGLE)
+
+t.near(
+	"brzeg przy placu lezy dokladnie BASE_RADIUS od srodka",
+	shoreZ,
+	Lake.CENTER_Z + Lake.BASE_RADIUS
+)
+t.near("punkt na brzegu ma odleglosc zero", Lake.edgeDistance(point(Lake.CENTER_X, shoreZ)), 0)
+t.isTrue("tuz za brzegiem jest woda", Lake.isOverWater(point(Lake.CENTER_X, shoreZ - 1)))
+t.isFalse("tuz przed brzegiem jest lad", Lake.isOverWater(point(Lake.CENTER_X, shoreZ + 1)))
+
+--[[ Obrys nie może się zapętlać ani wychodzić poza obszar roboczy buildera:
+     poza `HALF_SIZE` teren w ogóle nie jest przepisywany na jezioro. ]]
+local minRadius, maxRadius = math.huge, 0
+for step = 0, 719 do
+	local radius = Lake.radiusAt(step / 720 * math.pi * 2)
+	minRadius = math.min(minRadius, radius)
+	maxRadius = math.max(maxRadius, radius)
+end
+t.isTrue("jezioro miesci sie w obszarze roboczym buildera", maxRadius <= Lake.HALF_SIZE)
+t.isTrue("zadne wciecie nie siega najglebszej polki", minRadius > 56 + 8)
+t.isTrue("obrys nie jest kolem", maxRadius - minRadius > 20)
+
+--[[ Dno ma schodzić w dół w stronę środka w KAŻDYM kierunku. Gdyby gdzieś
+     płyciało, półki przestałyby być pomniejszonymi kopiami brzegu. ]]
+local monotonic = true
+for step = 0, 71 do
+	local angle = step / 72 * math.pi * 2
+	local previous = 0
+	for distance = Lake.radiusAt(angle), 0, -2 do
+		local depth = Lake.depthAt(
+			point(
+				Lake.CENTER_X + math.cos(angle) * distance,
+				Lake.CENTER_Z + math.sin(angle) * distance
+			)
+		)
+		if depth < previous then
+			monotonic = false
 		end
+		previous = depth
 	end
-	return depth
+end
+t.isTrue("dno poglebia sie ku srodkowi w kazdym kierunku", monotonic)
+
+--[[ Pomost biegnie od brzegu przy placu prosto do środka. Jego koniec
+     (64 study od brzegu) musi stać nad najgłębszą półką — inaczej bonus
+     za głębokość jest pieszo nieosiągalny. ]]
+t.equal(
+	"koniec pomostu stoi nad najglebsza woda",
+	Lake.depthAt(point(Lake.CENTER_X, shoreZ - 64)),
+	Lake.MAX_DEPTH
+)
+
+--[[ Dociąganie spławika do wody. ]]
+local function clampedEdge(x: number, z: number, margin: number): number
+	local cx, cz = Lake.clampXZ(x, z, margin)
+	return Lake.edgeDistance(point(cx, cz))
 end
 
-local mismatches = 0
-for x = -130, 130, 2 do
-	for z = Lake.CENTER_Z - 130, Lake.CENTER_Z + 130, 2 do
-		if Lake.depthAt(point(x, z)) ~= terrainDepth(x, z) then
-			mismatches += 1
-		end
+local unchangedX, unchangedZ = Lake.clampXZ(10, -140, 4)
+t.near("punkt gleboko nad woda zostaje na miejscu (X)", unchangedX, 10)
+t.near("punkt gleboko nad woda zostaje na miejscu (Z)", unchangedZ, -140)
+t.near("punkt z ladu trafia na wode z zapasem", clampedEdge(0, 40, 4), 4, 1e-6)
+t.near("punkt z plazy trafia na wode z zapasem", clampedEdge(150, -100, 4), 4, 1e-6)
+t.near("ujemny zapas liczy sie jak zero", clampedEdge(0, 40, -9), 0, 1e-6)
+
+local clampOk = true
+for step = 0, 35 do
+	local angle = step / 36 * math.pi * 2
+	local x = Lake.CENTER_X + math.cos(angle) * 300
+	local z = Lake.CENTER_Z + math.sin(angle) * 300
+	if math.abs(clampedEdge(x, z, 4) - 4) > 1e-6 then
+		clampOk = false
 	end
 end
-t.equal("depthAt zgadza sie z budowniczym terenu na calej siatce", mismatches, 0)
+t.isTrue("dociaganie dziala z kazdej strony jeziora", clampOk)
 
 --[[ Każda półka musi być głębsza niż ~5 studów, bo tyle ma postać gracza.
      Płytsza woda oznacza chodzenie po dnie — dokładnie efekt bagna. ]]
@@ -287,15 +340,23 @@ t.near("NaN nie psuje dystansu", Cast.distanceFor(0 / 0, 8, 30), 8)
 	formalnością i ten test ma o tym powiedzieć.
 ]]
 local function shelfFromShore(distance: number): number
-	return Lake.depthAt(point(Lake.CENTER_X, Lake.CENTER_Z + Lake.HALF_SIZE - distance))
+	local shore = Lake.CENTER_Z + Lake.radiusAt(Lake.SHORE_ANGLE)
+	return Lake.depthAt(point(Lake.CENTER_X, shore - distance))
 end
 t.isTrue(
 	"mocny rzut z brzegu trafia w glebsza wode niz slaby",
 	shelfFromShore(Cast.distanceFor(1, 8, 30)) > shelfFromShore(Cast.distanceFor(0, 8, 30))
 )
+-- 30 i 54 to zasięgi startowej i najlepszej wędki (Config/Rods). Ten plik nie może wczytać
+-- Rods (Color3 na poziomie modułu), więc liczby są powtórzone — zmiana
+-- zasięgu w configu wymaga świadomego poprawienia ich tutaj.
 t.isTrue(
-	"najglebsza polka zostaje poza zasiegiem z brzegu",
-	shelfFromShore(Cast.distanceFor(1, 8, 30)) < Lake.MAX_DEPTH
+	"najglebsza polka zostaje poza zasiegiem z brzegu nawet najlepsza wedka",
+	shelfFromShore(Cast.distanceFor(1, 8, 54)) < Lake.MAX_DEPTH
+)
+t.isTrue(
+	"lepsza wedka siega z brzegu glebiej niz startowa",
+	shelfFromShore(Cast.distanceFor(1, 8, 54)) > shelfFromShore(Cast.distanceFor(1, 8, 30))
 )
 
 t.isTrue("daleki rzut leci dluzej", Cast.flightTime(30, 30) > Cast.flightTime(8, 30))
@@ -331,5 +392,85 @@ for _, biteDelay in { 1.4, 2, 2.75, 3.3, 4, 5 } do
 	end
 end
 t.isTrue("skubniecia sa rozsuniete i nie zlewaja sie z braniem", nibblesOk)
+
+-- ---------------------------------------------------------------------------
+t.suite("CastPose — poza wedkarza")
+
+--[[ Kolejność zwracanych kątów: bark, łokieć, talia, nadgarstek.
+     Bark liczony od ręki zwisającej w dół: pi/2 to ręka w przód, więcej to
+     ręka nad barkiem i w tył. Talia ujemna = tułów odchylony w tył. ]]
+local holdShoulder = CastPose.casting(5, 0)
+local weakShoulder = CastPose.charging(1, 0)
+local strongShoulder, _, strongWaist = CastPose.charging(1, 1)
+t.isTrue(
+	"trzymanie wedki to reka w przodzie, ponizej poziomu",
+	holdShoulder > 0.9 and holdShoulder < math.pi / 2
+)
+t.isTrue("zamach unosi reke nad bark i w tyl", weakShoulder > math.pi / 2)
+t.isTrue("mocniejszy rzut to glebszy zamach", strongShoulder > weakShoulder)
+t.isTrue("mocny zamach odchyla tulow w tyl", strongWaist < 0)
+t.near("zamach zaczyna sie od reki w dol", (CastPose.charging(0, 1)), 0)
+
+--[[ Przejście zamach -> wymach nie może szarpnąć: w chwili zero wymach
+     stoi dokładnie w skrajnej pozie zamachu dla tej samej mocy. ]]
+local continuous = true
+for _, power in { 0, 0.3, 0.7, 1 } do
+	local a1, a2, a3, a4 = CastPose.charging(10, power)
+	local b1, b2, b3, b4 = CastPose.casting(0, power)
+	if
+		math.abs(a1 - b1) > 1e-9
+		or math.abs(a2 - b2) > 1e-9
+		or math.abs(a3 - b3) > 1e-9
+		or math.abs(a4 - b4) > 1e-9
+	then
+		continuous = false
+	end
+end
+t.isTrue("wymach zaczyna sie tam, gdzie konczy sie zamach", continuous)
+
+local releaseShoulder = CastPose.casting(CastPose.RELEASE_DELAY, 1)
+local windupShoulder = CastPose.casting(0, 1)
+local peakShoulder, _, peakWaist = CastPose.casting(0.14, 1)
+t.isTrue("w chwili puszczenia zylki reka juz idzie w przod", releaseShoulder < windupShoulder)
+t.isTrue("puszczenie wypada przed koncem wymachu", releaseShoulder > peakShoulder)
+t.isTrue("wymach konczy sie reka ponizej pozy trzymania", peakShoulder < holdShoulder)
+t.isTrue("wymach pochyla tulow za rzutem", peakWaist > 0)
+t.isTrue(
+	"mocniejszy rzut to nizszy wymach",
+	(CastPose.casting(0.14, 1)) < (CastPose.casting(0.14, 0))
+)
+t.near(
+	"po wymachu poza uspokaja sie niezaleznie od mocy",
+	(CastPose.casting(5, 1)),
+	(CastPose.casting(5, 0))
+)
+
+local slackShoulder, _, slackWaist = CastPose.fighting(0, 0, false)
+local tightShoulder, _, tightWaist = CastPose.fighting(0, 1, false)
+t.isTrue("napieta zylka podnosi wedke", tightShoulder > slackShoulder)
+t.isTrue("napieta zylka odchyla tulow", tightWaist < slackWaist)
+t.isTrue("najmocniejszy hol nie przekracza zamachu", tightShoulder < weakShoulder)
+t.near("hol bez napiecia to spokojne trzymanie", slackShoulder, holdShoulder)
+
+--[[ Żaden staw nie może wyjść poza zakres, w którym ręka wygląda jak ręka.
+     Sprawdzamy całą przestrzeń wejść, łącznie z wartościami spoza 0..1. ]]
+local sane = true
+local function check(a: number, b: number, c: number, d: number)
+	for _, angle in { a, b, c, d } do
+		if angle ~= angle or angle < -1 or angle > 3 then
+			sane = false
+		end
+	end
+end
+for step = 0, 40 do
+	local time = step * 0.05
+	for _, value in { -1, 0, 0.5, 1, 9 } do
+		check(CastPose.charging(time, value))
+		check(CastPose.casting(time, value))
+		check(CastPose.fighting(time, value, true))
+	end
+	check(CastPose.biting(time))
+end
+t.isTrue("katy stawow zostaja w rozsadnym zakresie", sane)
 
 t.finish()

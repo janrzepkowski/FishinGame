@@ -61,10 +61,11 @@ local Ground = {}
 local LAND_SIZE = Vector3.new(480, 48, 520)
 local LAND_CENTER = Vector3.new(0, -26, -60)
 
--- Zajętość najwyższego woksela plaży. Z tego samego powodu co wyżej pełna
--- zajętość dawała plażę na y = 2; 0,5 to grunt na 0, a 0,625 zostawia
--- niski wał piasku (~0,5 studa) między trawą a wodą.
-local BEACH_TOP_OCCUPANCY = 0.625
+-- Zajętość najwyższego woksela lądu w obszarze jeziora. Z tego samego
+-- powodu co wyżej pełna zajętość dawała grunt na y = 2; połowa to grunt
+-- na 0, równo z resztą lądu, ścieżką i lustrem wody. Wyższy wał piasku
+-- (próbowaliśmy 0,625) zakrywał ścieżkę prowadzącą na pomost.
+local SHORE_TOP_OCCUPANCY = 0.5
 
 -- Pas piasku wokół lustra wody. Bez niego trawa wchodzi wprost do wody
 -- i brzeg wygląda jak wycięty nożyczkami.
@@ -136,18 +137,26 @@ local function writeLakeVoxels()
 			for iz = 1, sizeZ do
 				local worldZ = minCorner.Z + (iz - 0.5) * VOXEL
 
-				local depth = LakeConfig.depthAt(Vector3.new(worldX, 0, worldZ))
+				local column = Vector3.new(worldX, 0, worldZ)
+				local depth = LakeConfig.depthAt(column)
 				local bedY = LakeConfig.SURFACE_Y - depth
 
 				local isBed = worldY < bedY
 				local isWater = depth > 0 and worldY >= bedY and worldY < LakeConfig.SURFACE_Y
 
-				-- Najwyższy woksel plaży jest zajęty częściowo — patrz
-				-- BEACH_TOP_OCCUPANCY. Dna pod wodą to nie dotyczy.
-				local isBeachTop = isBed and depth <= 0 and worldY > bedY - VOXEL
+				-- Obszar roboczy to kwadrat, a jezioro nie: piasek kładziemy
+				-- tylko w pasie plaży przy brzegu, resztę kwadratu oddajemy
+				-- trawie. Inaczej wokół jeziora leżałby kwadratowy plac piasku.
+				local isBeach = depth > 0 or LakeConfig.edgeDistance(column) > -BEACH_MARGIN
+				-- Najwyższy woksel lądu jest zajęty częściowo — patrz
+				-- SHORE_TOP_OCCUPANCY. Dna pod wodą to nie dotyczy.
+				local isLandTop = isBed and depth <= 0 and worldY > bedY - VOXEL
 
-				materialRow[iz] = if isBed then Enum.Material.Sand else Enum.Material.Air
-				solidRow[iz] = if not isBed then 0 elseif isBeachTop then BEACH_TOP_OCCUPANCY else 1
+				materialRow[iz] = if not isBed
+					then Enum.Material.Air
+					elseif isBeach then Enum.Material.Sand
+					else Enum.Material.Grass
+				solidRow[iz] = if not isBed then 0 elseif isLandTop then SHORE_TOP_OCCUPANCY else 1
 				liquidRow[iz] = if isWater then 1 else 0
 			end
 
@@ -269,12 +278,15 @@ end
 ]]
 local function reportDepths()
 	local cx, cz = LakeConfig.CENTER_X, LakeConfig.CENTER_Z
-	local half = LakeConfig.HALF_SIZE
+	-- Wzdłuż pomostu: od brzegu przy placu w stronę środka. Odległości są
+	-- dobrane w ŚRODKU półek, nie na ich granicach — woksel ma 4 study,
+	-- więc punkt tuż przy krawędzi półki może uczciwie wpaść do sąsiedniej.
+	local shore = cz + LakeConfig.radiusAt(LakeConfig.SHORE_ANGLE)
 
 	local probes = {
-		{ label = "brzeg", x = cx, z = cz + half - 4 },
-		{ label = "blisko brzegu", x = cx, z = cz + half - 20 },
-		{ label = "srodek pomostu", x = cx, z = cz + half - 50 },
+		{ label = "brzeg", x = cx, z = shore - 6 },
+		{ label = "blisko brzegu", x = cx, z = shore - 22 },
+		{ label = "srodek pomostu", x = cx, z = shore - 44 },
 		{ label = "srodek jeziora", x = cx, z = cz },
 	}
 

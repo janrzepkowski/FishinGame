@@ -58,7 +58,7 @@ local RodService = {}
 	Jeden kompletny CFrame i tyle.
 
 	Chwyt jest CZYSTYM PRZESUNIĘCIEM, bez obrotu. Pochylenie wędki w spoczynku
-	robi ramię (`CastAnimation.HOLD_ANGLE`), bo prawdziwy wędkarz też unosi
+	robi ramię (poza trzymania w `CastPose`), bo prawdziwy wędkarz też unosi
 	kij ramieniem, nie nadgarstkiem. Mniej stałych tutaj = mniej rzeczy,
 	które mogą być źle ustawione.
 ]]

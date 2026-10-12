@@ -19,7 +19,7 @@ local Theme = require(script.Parent.Theme)
 
 local MobileControls = {}
 
-export type Phase = "Idle" | "Charging" | "Waiting" | "Biting" | "Fighting"
+export type Phase = "Idle" | "Charging" | "Casting" | "Waiting" | "Biting" | "Fighting"
 
 local root: Frame? = nil
 local actionButton: TextButton? = nil
@@ -39,6 +39,8 @@ local PHASES: { [string]: { text: string, color: Color3 } } = {
 	-- Zamach trwa, dopóki palec leży na przycisku — podpis mówi, co zrobić,
 	-- żeby rzucić.
 	Charging = { text = "PUŚĆ!", color = Theme.COLOR.coin },
+	-- Rzut wysłany, serwer jeszcze nie odpowiedział — ułamek sekundy.
+	Casting = { text = "…", color = Theme.COLOR.panelHigh },
 	Waiting = { text = "czekaj…", color = Theme.COLOR.panelHigh },
 	Biting = { text = "PODETNIJ!", color = Theme.COLOR.warning },
 	-- W walce przycisk zmienia znaczenie z „stuknij" na „trzymaj",

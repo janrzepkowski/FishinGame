@@ -34,20 +34,63 @@ local PLANK_LENGTH = 4
 local START_Z = -32
 local LENGTH = 76
 
+local STEP_COUNT = 3
+-- Głębokość stopnia (w stronę lądu). 1,6 studa to wygodny krok dla postaci
+-- wysokiej na 5,5 studa.
+local STEP_DEPTH = 1.6
+-- Ile bloku stopnia siedzi pod ziemią, żeby pod schodami nie było szpary.
+local STEP_BURIED = 0.6
+
 local WOOD_LIGHT = Color3.fromRGB(176, 134, 88)
 local WOOD_DARK = Color3.fromRGB(148, 110, 70)
 local WOOD_POST = Color3.fromRGB(104, 78, 52)
 
 Dock.END_Z = START_Z - LENGTH
 
+--[[
+	Schody z gruntu na pokład.
+
+	Trzy równe stopnie, każdy jako PEŁNY blok sięgający pod ziemię. Poprzednie
+	dwie luźne deski wisiały nad ścieżką ze szparami pod spodem i wyglądały
+	jak porzucone palety — a przy okazji były za krótkie, żeby wejść po nich
+	bez podskoku na ostatnim odcinku.
+
+	Wysokość stopnia wychodzi z wysokości pokładu, a nie z ręki: gdy ktoś
+	podniesie pokład, schody urosną razem z nim.
+]]
 local function buildSteps(parent: Instance)
-	for index = 1, 2 do
+	for index = 1, STEP_COUNT do
+		-- Stopień `index` kończy się na ułamku wysokości pokładu; ostatni
+		-- zostawia jeszcze jeden równy krok na sam pokład.
+		local top = DECK_TOP * index / (STEP_COUNT + 1)
+		local height = top + STEP_BURIED
+		local centerZ = START_Z + (STEP_COUNT - index + 0.5) * STEP_DEPTH
+
 		Build.block(parent, {
 			Name = `Step{index}`,
-			Size = Vector3.new(WIDTH - 2, 0.5, 2),
-			Position = Vector3.new(0, index * 0.45 - 0.25, START_Z + (3 - index) * 2),
-			Color = WOOD_DARK,
+			Size = Vector3.new(WIDTH, height, STEP_DEPTH),
+			Position = Vector3.new(0, top - height / 2, centerZ),
+			Color = if index % 2 == 0 then WOOD_LIGHT else WOOD_DARK,
 			Material = Enum.Material.WoodPlanks,
+			CanCollide = true,
+		})
+	end
+
+	-- Policzki po bokach zamykają schody wizualnie i zasłaniają boki bloków.
+	local run = STEP_COUNT * STEP_DEPTH
+	for _, side in { -1, 1 } do
+		Build.wedge(parent, {
+			Name = "StepCheek",
+			Size = Vector3.new(0.4, DECK_TOP + STEP_BURIED, run),
+			-- Klin w Robloxie opada w stronę -Z własnego układu, a schody
+			-- opadają w stronę +Z świata — stąd obrót o pół obrotu.
+			CFrame = CFrame.new(
+				side * (WIDTH / 2 + 0.2),
+				(DECK_TOP - STEP_BURIED) / 2,
+				START_Z + run / 2
+			) * CFrame.Angles(0, math.pi, 0),
+			Color = WOOD_POST,
+			Material = Enum.Material.Wood,
 			CanCollide = true,
 		})
 	end

@@ -166,9 +166,10 @@ wysyłając czas z klienta** — to otwiera dokładnie tę dziurę, którą zamy
 
 ### Walidacja odległości od wody
 
-`Spatial.distanceToPart` liczy odległość do najbliższego punktu **bryły**, nie do
-jej środka. Woda to prostopadłościan 180×180 studów — liczone od środka gracz
-stojący na końcu pomostu byłby „90 studów od wody".
+Odległość od brzegu liczy `Lake.edgeDistance` — dodatnia nad wodą, ujemna
+na lądzie. Jezioro nie jest prostokątem, tylko zaokrągloną, trójpłatową
+zatoką opisaną promieniem zależnym od kierunku (`Lake.radiusAt`), a odległość
+mierzymy wzdłuż promienia od środka.
 
 Ta sama funkcja jest w `shared/`, więc klient używa dokładnie tej samej matematyki.
 Jedna implementacja = nie ma sytuacji, w której UI mówi „możesz łowić",
@@ -231,8 +232,9 @@ był obrazkiem wody, po którym gracz chodził.
 
 ### Dno jest schodkowe i ma znaczenie dla rozgrywki
 
-`shared/Config/Lake.luau` opisuje cztery półki: **8 m** przy brzegu, potem
-**16**, **24** i **32 m** w środku. `server/World/Ground.luau` buduje z tych
+`shared/Config/Lake.luau` opisuje obrys jeziora (`radiusAt`) i cztery półki:
+**8 m** przy brzegu, potem **16**, **24** i **32 m** w środku. Półki są
+pomniejszonymi kopiami brzegu, zaczynającymi się 12, 32 i 56 studów od niego. `server/World/Ground.luau` buduje z tych
 liczb teren:
 
 ```
@@ -391,7 +393,23 @@ modułu z `ServerScriptService`.
 
 ## Efekty lokalne
 
-`client/Effects/Bobber.luau` tworzy spławik, żyłkę, kręgi na wodzie i plusk.
+`client/Effects/Bobber.luau` tworzy spławik, żyłkę, kręgi na wodzie i plusk —
+dla każdego łowiącego w zasięgu, nie tylko dla siebie. `client/Effects/AnglerRig.luau`
+nakłada na postać pozę zamachu, rzutu i holu z kątów liczonych w
+`shared/Util/CastPose.luau`; steruje tym `AnglerController` na podstawie
+atrybutów postaci.
+
+Dwie pułapki, które kosztowały najwięcej czasu:
+
+- **Stawy awatarów to nie zawsze `Motor6D`.** Nowe postacie mają
+  `AnimationConstraint` o tej samej właściwości `Transform`. Kod szukający
+  wyłącznie `Motor6D` po cichu nie animuje nic.
+- **Pozę nakładamy w `RunService.PreSimulation`, nie w `RenderStepped`.**
+  Zapis z `RenderStepped` widać w odczycie, ale Animator nadpisuje go, zanim
+  trafi na ekran.
+
+Poniższe uwagi o replikacji dalej obowiązują: instancje tworzy każdy klient
+u siebie, sieć niesie tylko atrybuty.
 `client/Effects/Underwater.luau` sinieje i rozmywa obraz, gdy kamera schodzi
 pod lustro wody.
 
@@ -400,9 +418,8 @@ nie wpływa na rozgrywkę (decyduje `FishingService`), więc nie ma powodu
 obciążać nim sieci. Podobnie filtr podwodny: gdyby robił go serwer, wejście
 jednego gracza do wody zasiniłoby ekran całej serwerowni.
 
-Konsekwencja: **inni gracze nie widzą twojej żyłki.** Gdy to zacznie
-przeszkadzać, efekt trzeba przenieść na serwer, płacąc replikacją za każdy
-rzut każdego gracza.
+Inni gracze widzą twoją żyłkę i spławik, bo ich klienci rysują je sami
+z atrybutów twojej postaci — bez replikowania samych instancji.
 
 ## Interfejs: system projektowy i responsywność
 

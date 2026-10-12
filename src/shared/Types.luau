@@ -63,8 +63,10 @@ export type RodDefinition = {
 	-- Dzielnik przyrostu napięcia w walce. Mocniejsza żyłka = można holować
 	-- dłużej bez zerwania, czyli lepszy sprzęt realnie ułatwia walkę.
 	lineStrength: number,
-	-- Najdalszy rzut (moc 100%) w studach. Dziś wspólny dla wszystkich,
-	-- ale jako pole wędki, żeby lepszy sprzęt mógł później rzucać dalej.
+	-- Najdalszy rzut (moc 100%) w studach. Rośnie z klasą wędki: półki dna
+	-- zaczynają się 12, 32 i 56 studów od brzegu, więc lepszy sprzęt sięga
+	-- z brzegu głębszej wody. Najgłębsza półka ma zostać poza zasięgiem
+	-- z brzegu — po nią trzeba wyjść na pomost (pilnuje tego test).
 	castRange: number,
 	color: Color3,
 }

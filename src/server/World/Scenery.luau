@@ -42,9 +42,9 @@ local AREA_X = 205
 local AREA_Z_MIN = -250
 local AREA_Z_MAX = 120
 
--- Plaża to niski wał piasku ponad poziomem trawy i wody (patrz
--- BEACH_TOP_OCCUPANCY w Ground). Rośliny brzegowe stoją na nim, nie w nim.
-local BEACH_Y = 0.5
+-- Plaża leży równo z trawą i lustrem wody (patrz SHORE_TOP_OCCUPANCY
+-- w Ground).
+local BEACH_Y = 0
 
 -- Kompozycja z paczki.
 local GROVE_COUNT = 15

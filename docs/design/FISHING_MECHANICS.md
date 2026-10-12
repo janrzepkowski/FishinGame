@@ -184,7 +184,8 @@ Bez publikowanych assetów animacji — wszystko proceduralnie, z kodu.
 
 ### Animacje widzą wszyscy
 
-Zamach, hol i ugięcie kija **nie są lokalne**. Mechanizm:
+Zamach i hol **nie są lokalne**. Ugięcie kija, fizycznie pływający spławik,
+dosunięcie kamery i dźwięki są jeszcze do zrobienia. Mechanizm:
 
 - **Klient wysyła tylko intencję:** „zaczynam ładować", moc rzutu,
   „trzymam / puściłem" w walce.
@@ -236,8 +237,10 @@ Nie robimy i nie obiecujemy: własnych shaderów, kaustyk na dnie, załamania
 ## Podjęte decyzje
 
 1. **Pasek mocy wahadłowy**, okres ok. 1,3 s, stała w konfiguracji.
-2. **Zasięg wspólny 8–30 studów**, ale jako pole `castRange` w konfiguracji
-   wędki, żeby mógł później rosnąć z lepszymi wędkami.
+2. **Zasięg to pole `castRange` w konfiguracji wędki.** Początkowo wspólne
+   30 studów; po testach rośnie z klasą wędki: 30 / 38 / 46 / 54. Startowa
+   sięga z brzegu drugiej półki (16 m), lepsze trzeciej (24 m), a najgłębsza
+   (56 studów od brzegu) zostaje nagrodą za wyjście na pomost.
 3. **Do trzech skubnięć, losowo**, odróżnialnych od brania wzrokiem
    i słuchem; zacięcie na skubnięciu płoszy rybę.
 4. **Animacje, spławik i żyłka widoczne dla wszystkich**, sterowane
