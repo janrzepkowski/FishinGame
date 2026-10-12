@@ -27,6 +27,7 @@ local Environment = require("../src/shared/Util/Environment")
 local Fight = require("../src/shared/Util/Fight")
 local Format = require("../src/shared/Util/Format")
 local Lake = require("../src/shared/Config/Lake")
+local Ranking = require("../src/shared/Util/Ranking")
 local Rng = require("../src/shared/Util/Rng")
 local UiScale = require("../src/shared/Util/UiScale")
 
@@ -566,5 +567,65 @@ t.isTrue("premia nocna nie wysadza ekonomii", Environment.luckMultiplier(1) ^ 4 
 t.equal("niski los to deszcz", Environment.pickWeather(0.1, 0.35), "Rain")
 t.equal("wysoki los to pogoda", Environment.pickWeather(0.9, 0.35), "Clear")
 t.equal("szansa zero nigdy nie daje deszczu", Environment.pickWeather(0, 0), "Clear")
+
+-- ---------------------------------------------------------------------------
+t.suite("Ranking — skladanie czolowki")
+
+local function row(userId: number, name: string, value: number)
+	return { userId = userId, name = name, value = value }
+end
+
+local function names(rows): string
+	local list = {}
+	for _, entry in rows do
+		table.insert(list, `{entry.name}:{entry.value}`)
+	end
+	return table.concat(list, " ")
+end
+
+t.equal("pusty ranking z pustych zrodel", #Ranking.merge({}, {}, 8), 0)
+
+--[[ Sedno poprawki: gracz stojący obok ma być w rankingu OD RAZU, choć
+     jego wynik nie dotarł jeszcze do DataStore. ]]
+t.equal(
+	"gracz z serwera pojawia sie obok zapisanej czolowki",
+	names(Ranking.merge({ row(1, "Ala", 500) }, { row(2, "Olek", 300) }, 8)),
+	"Ala:500 Olek:300"
+)
+t.equal(
+	"sam serwer wystarcza, gdy DataStore nie dziala",
+	names(Ranking.merge({}, { row(2, "Olek", 300), row(3, "Ewa", 900) }, 8)),
+	"Ewa:900 Olek:300"
+)
+t.equal(
+	"ten sam gracz w obu zrodlach liczy sie raz, z wiekszym wynikiem",
+	names(Ranking.merge({ row(1, "Ala", 500) }, { row(1, "Ala", 750) }, 8)),
+	"Ala:750"
+)
+t.equal(
+	"spozniony odczyt z serwera nie cofa zapisanego wyniku",
+	names(Ranking.merge({ row(1, "Ala", 900) }, { row(1, "Ala", 100) }, 8)),
+	"Ala:900"
+)
+t.equal(
+	"nazwa pochodzi od gracza na serwerze, nie z cache",
+	names(Ranking.merge({ row(1, "Gracz 1", 500) }, { row(1, "Ala", 500) }, 8)),
+	"Ala:500"
+)
+t.equal(
+	"zera nie zajmuja miejsca",
+	names(Ranking.merge({ row(1, "Ala", 0) }, { row(2, "Olek", 0), row(3, "Ewa", 5) }, 8)),
+	"Ewa:5"
+)
+t.equal(
+	"limit obcina od dolu",
+	names(Ranking.merge({ row(1, "A", 10), row(2, "B", 30) }, { row(3, "C", 20) }, 2)),
+	"B:30 C:20"
+)
+t.equal(
+	"remis rozstrzyga userId, wiec kolejnosc jest stala",
+	names(Ranking.merge({ row(7, "G", 50) }, { row(3, "C", 50), row(5, "E", 50) }, 8)),
+	"C:50 E:50 G:50"
+)
 
 t.finish()

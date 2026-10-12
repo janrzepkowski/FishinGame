@@ -16,6 +16,20 @@
 
 	Ograniczenie, o którym trzeba wiedzieć: OrderedDataStore przyjmuje
 	WYŁĄCZNIE liczby całkowite. Stąd `math.floor` przy zapisie.
+
+	=========================================================================
+	DLACZEGO RANKING MA DWA ŹRÓDŁA
+	=========================================================================
+	Sam DataStore jest spóźniony o cykl zapisu i odczytu, a w Studio bez
+	dostępu do API nie ma go wcale. Gracz sprzedawał połów i przez kilka
+	minut nie widział w rankingu kolegi stojącego obok — a czasem nigdy,
+	bo wynik gracza, który wyszedł przed cyklem, w ogóle nie był zapisywany.
+
+	Dlatego do zapisanej czołówki dokładamy BIEŻĄCE wyniki graczy z tego
+	serwera (`Ranking.merge`). Trzymamy je u siebie w `latest`, a nie
+	czytamy z `DataService.get` w momencie zapisu: przy wyjściu gracza
+	DataService zdejmuje profil we własnym handlerze `PlayerRemoving`
+	i nasz handler dostawał już `nil`.
 ]]
 
 local DataStoreService = game:GetService("DataStoreService")
@@ -24,6 +38,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
 local Net = require(ReplicatedStorage.Shared.Net)
+local Ranking = require(ReplicatedStorage.Shared.Util.Ranking)
 local Types = require(ReplicatedStorage.Shared.Types)
 
 local DataService = require(script.Parent.DataService)
@@ -31,11 +46,21 @@ local DataService = require(script.Parent.DataService)
 local LeaderboardService = {}
 
 local store: OrderedDataStore? = nil
-local cached: { Types.LeaderboardEntry } = {}
+
+-- Czołówka z ostatniego odczytu OrderedDataStore. Pusta, gdy DataStore
+-- nie działa — wtedy ranking składa się z samych graczy na serwerze.
+local storedRows: { Ranking.Row } = {}
+
+-- Bieżący `totalEarned` każdego gracza na serwerze. Własna kopia, bo przy
+-- wyjściu gracza profilu w DataService już nie ma (patrz nagłówek).
+local latest: { [Player]: number } = {}
 
 -- Ostatnia wartość zapisana dla gracza. Chroni przed pisaniem tej samej
 -- liczby w kółko przy cyklicznym zapisie.
 local submitted: { [Player]: number } = {}
+
+-- Gracze z zaplanowanym zapisem po zmianie wyniku.
+local pendingSubmit: { [Player]: boolean } = {}
 
 -- userId -> nazwa. `GetNameFromUserIdAsync` to zapytanie sieciowe, a te same
 -- osoby siedzą w czołówce godzinami — bez cache odpytywalibyśmy Roblox
@@ -65,6 +90,26 @@ local function resolveName(userId: number): string
 end
 
 --[[
+	Składa ranking z obu źródeł i rozsyła go wszystkim.
+
+	Nie dotyka DataStore, więc można to wołać przy każdej sprzedaży —
+	to tylko sortowanie kilkudziesięciu wierszy.
+]]
+local function broadcast()
+	local live: { Ranking.Row } = {}
+	for player, value in latest do
+		table.insert(live, { userId = player.UserId, name = player.DisplayName, value = value })
+	end
+
+	local entries: { Types.LeaderboardEntry } = {}
+	for _, row in Ranking.merge(storedRows, live, GameConfig.LEADERBOARD_SIZE) do
+		table.insert(entries, { name = row.name, value = row.value })
+	end
+
+	Net.LeaderboardUpdated:FireAllClients(entries)
+end
+
+--[[
 	Zapisuje wynik gracza. Cicho pomija, gdy DataStore nie działa.
 
 	`UpdateAsync` z `math.max`, a NIE `SetAsync`. Przy jednym serwerze różnicy
@@ -75,17 +120,14 @@ end
 	a zapis, który przyszedł nie w kolejności, po prostu nic nie robi.
 
 	Pomijamy też zapis, gdy wartość się nie zmieniła od ostatniego razu.
-	Przy cyklicznym zapisie co kilka minut większość graczy nic nie sprzedała
-	i pisanie tej samej liczby zjadałoby limit zapytań bez powodu.
 ]]
 function LeaderboardService.submit(player: Player)
 	local activeStore = store
-	local profile = DataService.get(player)
-	if not activeStore or not profile then
+	local value = latest[player]
+	if not activeStore or not value then
 		return
 	end
 
-	local value = math.floor(profile.totalEarned)
 	if value <= 0 then
 		-- Nie zaśmiecamy rankingu zerami. Gracz, który nic nie zarobił,
 		-- nie ma po co być w indeksie.
@@ -97,9 +139,14 @@ function LeaderboardService.submit(player: Player)
 	end
 	submitted[player] = value
 
+	-- `player` może zniknąć, zanim zapis się skończy — klucz i nazwę
+	-- bierzemy teraz, a nie w środku wątku.
+	local key = tostring(player.UserId)
+	local playerName = player.Name
+
 	task.spawn(function()
 		local ok, err = pcall(function()
-			activeStore:UpdateAsync(tostring(player.UserId), function(stored)
+			activeStore:UpdateAsync(key, function(stored)
 				local previous = if typeof(stored) == "number" then stored else 0
 				return math.max(previous, value)
 			end)
@@ -107,9 +154,29 @@ function LeaderboardService.submit(player: Player)
 		if not ok then
 			-- Cofamy znacznik: następny cykl spróbuje ponownie, zamiast
 			-- uznać nieudany zapis za zrobiony.
-			submitted[player] = nil
-			warn(`[LeaderboardService] zapis {player.Name} nie przeszedł: {tostring(err)}`)
+			if submitted[player] == value then
+				submitted[player] = nil
+			end
+			warn(`[LeaderboardService] zapis {playerName} nie przeszedł: {tostring(err)}`)
 		end
+	end)
+end
+
+--[[ Zapis krótko po zmianie wyniku, ale nie przy każdej z osobna: seria
+     sprzedaży w pół minuty kończy się jednym zapytaniem. ]]
+local function scheduleSubmit(player: Player)
+	if pendingSubmit[player] then
+		return
+	end
+	pendingSubmit[player] = true
+
+	task.delay(GameConfig.LEADERBOARD_SUBMIT_DEBOUNCE, function()
+		if not pendingSubmit[player] then
+			-- Gracz wyszedł; jego wynik zapisał już handler wyjścia.
+			return
+		end
+		pendingSubmit[player] = nil
+		LeaderboardService.submit(player)
 	end)
 end
 
@@ -136,28 +203,58 @@ local function refresh()
 		return
 	end
 
-	local entries: { Types.LeaderboardEntry } = {}
-	for _, row in page :: { { key: string, value: number } } do
-		local userId = tonumber(row.key)
+	local rows: { Ranking.Row } = {}
+	for _, entry in page :: { { key: string, value: number } } do
+		local userId = tonumber(entry.key)
 		if userId then
-			table.insert(entries, { name = resolveName(userId), value = row.value })
+			table.insert(rows, { userId = userId, name = resolveName(userId), value = entry.value })
 		end
 	end
 
-	cached = entries
-
-	for _, player in Players:GetPlayers() do
-		Net.LeaderboardUpdated:FireClient(player, entries)
-	end
+	storedRows = rows
+	broadcast()
 end
 
 function LeaderboardService.start()
-	-- Nowy gracz dostaje aktualny ranking od razu, bez czekania na najbliższe
-	-- odświeżenie. Podpinamy to PRZED sprawdzeniem DataStore: gdy ranking jest
-	-- wyłączony, klient dostaje pustą listę i rysuje „ranking niedostępny"
-	-- zamiast zostawać z pustą sekcją bez wyjaśnienia.
+	-- Śledzenie wyników podpinamy PRZED sprawdzeniem DataStore: bez niego
+	-- ranking i tak działa, tylko obejmuje samych graczy z tego serwera.
 	DataService.onProfileReady(function(player)
-		Net.LeaderboardUpdated:FireClient(player, cached)
+		local profile = DataService.get(player)
+		latest[player] = if profile then math.floor(profile.totalEarned) else 0
+		-- Rozsyłamy wszystkim, nie tylko wchodzącemu: pozostali mają
+		-- zobaczyć nowego gracza od razu.
+		broadcast()
+	end)
+
+	DataService.onProfileChanged(function(player, profile)
+		local value = math.floor(profile.totalEarned)
+		if value <= (latest[player] or 0) then
+			-- Większość zmian profilu (złowiona ryba, zakup wędki) nie rusza
+			-- zarobków i nie ma czego rozsyłać.
+			return
+		end
+
+		latest[player] = value
+		broadcast()
+		scheduleSubmit(player)
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		local value = latest[player]
+		LeaderboardService.submit(player)
+
+		-- Wynik wychodzącego zostaje w czołówce do najbliższego odczytu
+		-- DataStore, zamiast zniknąć na minutę i wrócić.
+		if value and value > 0 then
+			storedRows = Ranking.merge(storedRows, {
+				{ userId = player.UserId, name = player.DisplayName, value = value },
+			}, GameConfig.LEADERBOARD_SIZE)
+		end
+
+		latest[player] = nil
+		submitted[player] = nil
+		pendingSubmit[player] = nil
+		broadcast()
 	end)
 
 	local ok, resolved = pcall(function()
@@ -166,7 +263,7 @@ function LeaderboardService.start()
 
 	if not ok or not resolved then
 		warn(
-			"[LeaderboardService] OrderedDataStore niedostępny — ranking wyłączony.\n"
+			"[LeaderboardService] OrderedDataStore niedostępny — ranking tylko z tej sesji.\n"
 				.. "  Studio: Game Settings -> Security -> Enable Studio Access to API Services."
 		)
 		return
@@ -174,31 +271,25 @@ function LeaderboardService.start()
 
 	store = resolved
 
-	Players.PlayerRemoving:Connect(function(player)
-		LeaderboardService.submit(player)
-		submitted[player] = nil
-	end)
-
 	--[[
-		Zapis CYKLICZNY, nie tylko przy wyjściu.
+		Zapis CYKLICZNY jako siatka bezpieczeństwa.
 
-		Sam zapis na wyjściu wygląda poprawnie, dopóki serwer kończy się
-		normalnie. W praktyce serwery padają, a Roblox nie gwarantuje, że
-		`PlayerRemoving` zdąży dokończyć zapis — wtedy gracz traci cały
-		dorobek sesji w rankingu.
-
-		Pisanie po każdej sprzedaży byłoby drugą skrajnością: przy 50 graczach
-		na serwerze i sprzedaży co pół minuty to ~100 zapisów na minutę,
-		czyli zjadanie limitu na dane, które i tak odświeżamy raz na minutę.
-
-		Cykl co 2 minuty plus pominięcie niezmienionych wartości daje w praktyce
-		kilka zapisów na minutę na serwer — mieści się w budżecie z dużym zapasem.
+		Wynik idzie do DataStore krótko po każdej zmianie (`scheduleSubmit`)
+		i przy wyjściu gracza. Cykl łapie to, co się nie udało: zapis
+		odrzucony przez limit zapytań albo chwilową awarię DataStore.
+		Niezmienione wartości są pomijane, więc w praktyce to kilka zapytań
+		na minutę na serwer.
 	]]
 	task.spawn(function()
 		while true do
 			task.wait(GameConfig.LEADERBOARD_SUBMIT_INTERVAL)
 
-			for _, player in Players:GetPlayers() do
+			local pending: { Player } = {}
+			for player in latest do
+				table.insert(pending, player)
+			end
+
+			for _, player in pending do
 				LeaderboardService.submit(player)
 				-- Rozkładamy zapisy w czasie, zamiast wysyłać pięćdziesiąt
 				-- naraz w tej samej klatce.
