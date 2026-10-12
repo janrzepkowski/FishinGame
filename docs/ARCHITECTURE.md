@@ -306,14 +306,29 @@ nad głębią ≈ 2,2%.
 
 ### Jedna matematyka dla obu stron
 
-Punkt zarzucenia liczy `Spatial.castTarget`, a dociąga go do wody
-`Lake.clampToWater` — **te same funkcje wołają klient i serwer**. Klient stawia
-tam spławik, serwer mierzy tam głębokość.
+Rzut ma siłę: gracz przytrzymuje przycisk, wahadłowy pasek mocy chodzi
+0 → 100% → 0, a puszczenie rzuca. Moc na odległość przelicza
+`Cast.distanceFor` (od `CAST_MIN_DISTANCE` do `castRange` wędki), a pasek
+i kontroler czytają moc z tej samej funkcji `Cast.powerAt` — gracz dostaje
+dokładnie ten rzut, który widział na pasku.
 
-Dociąganie jest konieczne, bo `MAX_CAST_DISTANCE` (28) jest większe niż
-`CAST_DISTANCE` (22): gracz może legalnie stać dalej od brzegu, niż sięga jego
-rzut. Bez wspólnego dociągnięcia spławik lądowałby na trawie, a serwer liczyłby
-głębokość w zupełnie innym punkcie.
+Klient wysyła **wyłącznie moc**. Punkt lądowania liczy serwer
+(`Spatial.castTarget` + `Lake.clampToWater`), mierzy tam głębokość i odsyła
+punkt w `CastStarted`; klient stawia spławik tam, gdzie mu kazano, zamiast
+liczyć drugi raz.
+
+Dociąganie do wody jest konieczne, bo `MAX_CAST_DISTANCE` (28) jest większe
+niż najkrótszy rzut (8): gracz może legalnie stać dalej od brzegu, niż sięga
+jego rzut. Bez dociągnięcia spławik lądowałby na trawie.
+
+### Stan łowienia widoczny dla wszystkich
+
+Serwer ogłasza, co postać robi, atrybutami na jej modelu: `FishingPhase`,
+`CastPower`, `CastTarget`, `Tension`, `FishSurging` i licznik skubnięć
+`FishingNibbles`. Nazwy są w `GameConfig`. Każdy klient animuje z nich
+wszystkie postacie w zasięgu. Atrybut, a nie Remote do wszystkich, bo gracz,
+który podejdzie w trakcie cudzej walki, dostaje aktualny stan razem
+z postacią. Pełna specyfikacja: `docs/design/FISHING_MECHANICS.md`.
 
 ## Dlaczego mapa jest budowana kodem
 

@@ -30,6 +30,7 @@ local DEFINITIONS: { RodDefinition } = {
 		biteSpeed = 1.0,
 		reelWindow = 1.5,
 		lineStrength = 1.0,
+		castRange = 30,
 		color = Color3.fromRGB(141, 102, 60),
 	},
 	{
@@ -41,6 +42,7 @@ local DEFINITIONS: { RodDefinition } = {
 		biteSpeed = 0.85,
 		reelWindow = 1.7,
 		lineStrength = 1.2,
+		castRange = 30,
 		color = Color3.fromRGB(72, 86, 102),
 	},
 	{
@@ -52,6 +54,7 @@ local DEFINITIONS: { RodDefinition } = {
 		biteSpeed = 0.7,
 		reelWindow = 1.9,
 		lineStrength = 1.45,
+		castRange = 30,
 		color = Color3.fromRGB(38, 40, 46),
 	},
 	{
@@ -63,6 +66,7 @@ local DEFINITIONS: { RodDefinition } = {
 		biteSpeed = 0.55,
 		reelWindow = 2.2,
 		lineStrength = 1.8,
+		castRange = 30,
 		color = Color3.fromRGB(196, 158, 72),
 	},
 }

@@ -83,7 +83,8 @@ end)
 
 -- Przycisk dotykowy i `Tool.Activated` wołają dokładnie te same funkcje,
 -- żeby obie ścieżki wejścia nie mogły się rozjechać.
-MobileControls.setPrimaryAction(FishingController.primaryAction)
+MobileControls.setPrimaryAction(FishingController.press)
+MobileControls.setPrimaryRelease(FishingController.release)
 MobileControls.setReelingAction(FishingController.setReeling)
 
 -- Slot na pasku i klawisz `1` wołają tę samą funkcję.

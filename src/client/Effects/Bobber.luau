@@ -9,10 +9,9 @@
 	przeszkadzać, efekt trzeba przenieść na serwer — ale wtedy płacimy
 	replikacją za każdy rzut każdego gracza.
 
-	Punkt zarzucenia liczymy `Spatial.castTarget` + `Lake.clampToWater` —
-	DOKŁADNIE tymi samymi funkcjami, których serwer używa do sprawdzenia
-	głębokości. Gdyby klient liczył po swojemu, spławik lądowałby gdzie
-	indziej niż miejsce, z którego naprawdę bierze ryba.
+	Punkt lądowania PRZYCHODZI Z SERWERA (`CastStarted`). Klient go nie
+	liczy: serwer wyznacza go z własnej pozycji postaci i mierzy tam
+	głębokość, więc spławik staje dokładnie tam, skąd naprawdę bierze ryba.
 
 	Spławik LECI, a nie pojawia się na miejscu. Teleportacja na 22 study
 	była największym pojedynczym powodem, dla którego zarzucanie wyglądało
@@ -25,15 +24,17 @@ local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local Shared = game:GetService("ReplicatedStorage"):WaitForChild("Shared")
-local GameConfig = require(Shared.Config.Game)
 local LakeConfig = require(Shared.Config.Lake)
 local Spatial = require(Shared.Util.Spatial)
 
 local Bobber = {}
 
 local CONTAINER_NAME = "ClientEffects"
-local FLIGHT_TIME = 0.55
 local REEL_TIME = 0.32
+-- Skubnięcie: płytkie i krótkie. Branie zanurza spławik na 0,55 studa
+-- i trzyma go pod wodą — te dwie liczby mają się różnić na pierwszy rzut oka.
+local NIBBLE_DEPTH = 0.2
+local NIBBLE_TIME = 0.3
 -- Wysokość łuku jako ułamek dystansu. Przy 0 spławik leci płasko jak
 -- pocisk, przy 0.4 wygląda jak rzut granatem.
 local ARC_RATIO = 0.17
@@ -45,6 +46,7 @@ local bobber: BasePart? = nil
 local beam: Beam? = nil
 local motion: RBXScriptConnection? = nil
 local restY = LakeConfig.SURFACE_Y
+local nibbleAt = 0
 
 local function getContainer(): Folder
 	local existing = container
@@ -179,8 +181,18 @@ local function startFloating()
 			stopMotion()
 			return
 		end
-		local t = os.clock() * 1.8 + phase
-		part.Position = Vector3.new(part.Position.X, restY + math.sin(t) * 0.03, part.Position.Z)
+		local now = os.clock()
+		local t = now * 1.8 + phase
+
+		-- Skubnięcie to jedno płytkie „mrugnięcie" nałożone na kołysanie:
+		-- pół sinusoidy w dół i z powrotem, bez zatrzymywania pętli.
+		local since = now - nibbleAt
+		local dip = if since < NIBBLE_TIME
+			then math.sin(since / NIBBLE_TIME * math.pi) * NIBBLE_DEPTH
+			else 0
+
+		part.Position =
+			Vector3.new(part.Position.X, restY + math.sin(t) * 0.03 - dip, part.Position.Z)
 	end)
 end
 
@@ -190,9 +202,12 @@ end
 	Woła się to w momencie puszczenia żyłki przez `CastAnimation`, a nie
 	na starcie zamachu — inaczej spławik wyprzedzałby ruch ręki.
 
+	`landing` to punkt z serwera, `flightTime` rośnie z odległością rzutu
+	(`Cast.flightTime`) — daleki rzut ma lecieć dłużej, a nie szybciej.
+
 	Nic nie robi bez postaci; to normalny stan (respawn), nie błąd.
 ]]
-function Bobber.launch()
+function Bobber.launch(landing: Vector3, flightTime: number)
 	Bobber.clear()
 
 	local root = Spatial.characterRoot(player)
@@ -200,10 +215,7 @@ function Bobber.launch()
 		return
 	end
 
-	local landing = LakeConfig.clampToWater(
-		Spatial.castTarget(root.CFrame, GameConfig.CAST_DISTANCE),
-		GameConfig.CAST_SHORE_MARGIN
-	)
+	nibbleAt = 0
 	restY = landing.Y + 0.2
 	local target = Vector3.new(landing.X, restY, landing.Z)
 
@@ -223,7 +235,7 @@ function Bobber.launch()
 			return
 		end
 
-		local t = (os.clock() - startedAt) / FLIGHT_TIME
+		local t = (os.clock() - startedAt) / flightTime
 
 		if t >= 1 then
 			part.Position = target
@@ -246,6 +258,23 @@ function Bobber.launch()
 		local height = arc * 4 * t * (1 - t)
 		part.Position = Vector3.new(flat.X, flat.Y + height, flat.Z)
 	end)
+end
+
+--[[
+	Fałszywe skubnięcie: płytkie drgnięcie i mały krąg.
+
+	Celowo słabsze od brania pod każdym względem — spławik nie znika pod
+	wodą, krąg jest jeden i mały, żyłka zostaje luźna. Gracz ma się nauczyć
+	je odróżniać, bo zacięcie na skubnięciu płoszy rybę.
+]]
+function Bobber.nibble()
+	local float = bobber
+	if not float then
+		return
+	end
+
+	nibbleAt = os.clock()
+	ripple(Vector3.new(float.Position.X, restY, float.Position.Z), 2.6, 0.5)
 end
 
 --[[ Szarpnięcie w momencie brania. Poza paskiem UI to jedyna informacja

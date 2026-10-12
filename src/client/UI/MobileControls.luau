@@ -19,7 +19,7 @@ local Theme = require(script.Parent.Theme)
 
 local MobileControls = {}
 
-export type Phase = "Idle" | "Waiting" | "Biting" | "Fighting"
+export type Phase = "Idle" | "Charging" | "Waiting" | "Biting" | "Fighting"
 
 local root: Frame? = nil
 local actionButton: TextButton? = nil
@@ -27,6 +27,7 @@ local inventoryButton: TextButton? = nil
 local journalButton: TextButton? = nil
 
 local primaryAction: (() -> ())? = nil
+local primaryRelease: (() -> ())? = nil
 local inventoryAction: (() -> ())? = nil
 local journalAction: (() -> ())? = nil
 local reelingAction: ((boolean) -> ())? = nil
@@ -35,6 +36,9 @@ local currentPhase: Phase = "Idle"
 
 local PHASES: { [string]: { text: string, color: Color3 } } = {
 	Idle = { text = "ZARZUĆ", color = Theme.COLOR.accent },
+	-- Zamach trwa, dopóki palec leży na przycisku — podpis mówi, co zrobić,
+	-- żeby rzucić.
+	Charging = { text = "PUŚĆ!", color = Theme.COLOR.coin },
 	Waiting = { text = "czekaj…", color = Theme.COLOR.panelHigh },
 	Biting = { text = "PODETNIJ!", color = Theme.COLOR.warning },
 	-- W walce przycisk zmienia znaczenie z „stuknij" na „trzymaj",
@@ -94,44 +98,45 @@ function MobileControls.mount(parent: Instance)
 		end
 	end
 
-	-- W walce przycisk działa na TRZYMANIE, poza nią na stuknięcie.
-	-- Dwa różne zdarzenia na jednym przycisku, rozdzielone fazą — inaczej
-	-- gracz musiałby szukać drugiego przycisku dokładnie w momencie,
-	-- w którym ma najmniej czasu.
+	-- Jeden przycisk, trzy znaczenia rozdzielone fazą: w walce TRZYMANIE
+	-- to holowanie, przed rzutem TRZYMANIE to zamach, a w pozostałych
+	-- fazach liczy się samo wciśnięcie. Inaczej gracz musiałby szukać
+	-- drugiego przycisku dokładnie w momencie, w którym ma najmniej czasu.
+	--
+	-- Reagujemy na wciśnięcie i puszczenie, nie na `MouseButton1Click`:
+	-- kliknięcie przychodzi dopiero po puszczeniu, a zamach musi zacząć
+	-- się, gdy palec dotknie ekranu.
+	local function released()
+		local reel = reelingAction
+		if reel then
+			reel(false)
+		end
+		local release = primaryRelease
+		if release then
+			release()
+		end
+	end
+
 	action.MouseButton1Down:Connect(function()
 		if currentPhase == "Fighting" then
 			local handler = reelingAction
 			if handler then
 				handler(true)
 			end
-		end
-	end)
-
-	action.MouseButton1Up:Connect(function()
-		local handler = reelingAction
-		if handler then
-			handler(false)
-		end
-	end)
-
-	action.MouseLeave:Connect(function()
-		-- Palec zsunięty z przycisku też kończy holowanie. Bez tego
-		-- zjechanie kciukiem zostawiałoby żyłkę napiętą aż do zerwania.
-		local handler = reelingAction
-		if handler then
-			handler(false)
-		end
-	end)
-
-	action.MouseButton1Click:Connect(function()
-		if currentPhase == "Fighting" then
 			return
 		end
+
 		local handler = primaryAction
 		if handler then
 			handler()
 		end
 	end)
+
+	action.MouseButton1Up:Connect(released)
+
+	-- Palec zsunięty z przycisku też kończy holowanie i zamach. Bez tego
+	-- zjechanie kciukiem zostawiałoby żyłkę napiętą aż do zerwania.
+	action.MouseLeave:Connect(released)
 
 	inventory.MouseButton1Click:Connect(function()
 		local handler = inventoryAction
@@ -172,6 +177,11 @@ end
 
 function MobileControls.setPrimaryAction(handler: () -> ())
 	primaryAction = handler
+end
+
+--[[ Puszczenie głównego przycisku — kończy zamach rzutem. ]]
+function MobileControls.setPrimaryRelease(handler: () -> ())
+	primaryRelease = handler
 end
 
 function MobileControls.setInventoryAction(handler: () -> ())

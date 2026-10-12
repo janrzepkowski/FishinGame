@@ -92,7 +92,23 @@ local Net = {}
 -- serwer musi walidować i tym mniej da się oszukać.
 -- =========================================================================
 
---[[ () — "chcę zarzucić". Serwer sam sprawdza wędkę, cooldown i odległość od wody. ]]
+--[[
+	(charging: boolean) — „zaczynam zamach" / „rezygnuję z zamachu".
+
+	Potrzebne wyłącznie po to, żeby INNI gracze widzieli zamach: serwer
+	ustawia na postaci fazę `Charging`. Nie niesie mocy — ta przychodzi
+	dopiero z `RequestCast`.
+]]
+Net.RequestCharge = remote("RequestCharge")
+
+--[[
+	(power: number) — „rzucam z taką mocą", 0..1.
+
+	Klient podaje WYŁĄCZNIE moc. Punkt lądowania liczy serwer z pozycji
+	postaci po swojej stronie, tą samą funkcją co klient (`Cast.distanceFor`).
+	Podanie mocy 1,0 skryptem daje dokładnie tyle, co dobry rzut ręką.
+	Serwer sam sprawdza też wędkę, cooldown i odległość od wody.
+]]
 Net.RequestCast = remote("RequestCast")
 
 --[[ () — "podcinam teraz". Serwer sam mierzy czas reakcji; klient nie podaje wyniku. ]]
@@ -137,9 +153,12 @@ Net.RequestProfile = remote("RequestProfile")
      mały (kilka KB), więc nie komplikujemy tego diffami. ]]
 Net.ProfileUpdated = remote("ProfileUpdated")
 
---[[ (depth: number) — zarzucenie przyjęte, wraz z głębokością wody pod
-     spławikiem (w studach). Klient pokazuje ją w HUD-zie, bo to jedyna
-     informacja zwrotna o tym, że dalsze wyjście na pomost ma sens. ]]
+--[[ (depth: number, landing: Vector3) — zarzucenie przyjęte, wraz
+     z głębokością wody pod spławikiem (w studach) i punktem lądowania.
+     Głębokość idzie do HUD-u, bo to jedyna informacja zwrotna o tym, że
+     dalsze wyjście na pomost ma sens. Punkt odsyłamy, zamiast kazać
+     klientowi liczyć go drugi raz: postać w chwili obsługi żądania stoi
+     u serwera odrobinę gdzie indziej niż u klienta. ]]
 Net.CastStarted = remote("CastStarted")
 
 --[[ (reelWindow: number) — ryba bierze, masz tyle sekund na podcięcie.

@@ -63,6 +63,9 @@ export type RodDefinition = {
 	-- Dzielnik przyrostu napięcia w walce. Mocniejsza żyłka = można holować
 	-- dłużej bez zerwania, czyli lepszy sprzęt realnie ułatwia walkę.
 	lineStrength: number,
+	-- Najdalszy rzut (moc 100%) w studach. Dziś wspólny dla wszystkich,
+	-- ale jako pole wędki, żeby lepszy sprzęt mógł później rzucać dalej.
+	castRange: number,
 	color: Color3,
 }
 
@@ -99,10 +102,18 @@ export type CastOutcome =
 	| "Escaped"
 	-- Klik przed braniem.
 	| "TooEarly"
+	-- Zacięcie na fałszywym skubnięciu — ryba spłoszona.
+	| "Spooked"
 	-- Napięcie sięgnęło maksimum w trakcie walki.
 	| "LineSnapped"
 	-- Brania nie było, bo nie ma gdzie wsadzić ryby.
 	| "InventoryFull"
+
+--[[
+	Faza łowienia widoczna dla wszystkich — wartość atrybutu `FishingPhase`
+	na postaci. Ustawia ją serwer, klienci animują na jej podstawie.
+]]
+export type FishingPhase = "Idle" | "Charging" | "Waiting" | "Biting" | "Fighting"
 
 export type CastResult = {
 	outcome: CastOutcome,

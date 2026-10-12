@@ -25,6 +25,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Cast = require(Shared.Util.Cast)
 local Fish = require(Shared.Config.Fish)
 local Format = require(Shared.Util.Format)
 local GameConfig = require(Shared.Config.Game)
@@ -215,6 +216,42 @@ function CastMeter.mount(parent: Instance)
 	end)
 end
 
+--[[
+	Zamach: wahadłowy pasek mocy.
+
+	Pasek liczy moc z tej samej funkcji (`Cast.powerAt`) i tego samego
+	momentu startu, z których kontroler wyliczy moc przy puszczeniu.
+	Gdyby rysował własną animację, gracz puszczałby na „pełnym" pasku
+	i dostawał rzut na pół dystansu.
+]]
+function CastMeter.showCharge(startedAt: number)
+	beginState(Theme.COLOR.accent)
+	setTensionVisible(false)
+
+	if titleLabel then
+		titleLabel.Text = "Zamach"
+		titleLabel.TextColor3 = Theme.COLOR.text
+	end
+	if hintLabel then
+		hintLabel.Text = "Puść, żeby rzucić. Pełny pasek = najdalej."
+	end
+	if perfectZone then
+		perfectZone.Visible = false
+	end
+
+	local bar = progressFill
+	renderConnection = RunService.RenderStepped:Connect(function()
+		if not bar then
+			stopRender()
+			return
+		end
+
+		local power = Cast.powerAt(os.clock() - startedAt, GameConfig.CAST_POWER_PERIOD)
+		bar.Size = UDim2.fromScale(power, 1)
+		bar.BackgroundColor3 = Theme.COLOR.accent:Lerp(Theme.COLOR.coin, power)
+	end)
+end
+
 --[[ Zarzucenie przyjęte — czekamy na branie. ]]
 function CastMeter.showWaiting()
 	beginState(Theme.COLOR.water)
@@ -225,7 +262,7 @@ function CastMeter.showWaiting()
 		titleLabel.TextColor3 = Theme.COLOR.textMuted
 	end
 	if hintLabel then
-		hintLabel.Text = "Czekaj na branie. Nie podcinaj za wcześnie."
+		hintLabel.Text = "Czekaj na branie. Skubnięcie to jeszcze nie ryba."
 	end
 	if progressFill then
 		progressFill.Size = UDim2.fromScale(0, 1)
@@ -408,6 +445,10 @@ function CastMeter.showResult(result: Types.CastResult)
 		title.Text = "Ryba uciekła"
 		title.TextColor3 = Theme.COLOR.danger
 		hint.Text = "Za późno — podcinaj, gdy pasek jeszcze leci."
+	elseif result.outcome == "Spooked" then
+		title.Text = "Spłoszona"
+		title.TextColor3 = Theme.COLOR.danger
+		hint.Text = "To było tylko skubnięcie. Czekaj, aż spławik zniknie pod wodą."
 	elseif result.outcome == "TooEarly" then
 		title.Text = "Za wcześnie"
 		title.TextColor3 = Theme.COLOR.danger

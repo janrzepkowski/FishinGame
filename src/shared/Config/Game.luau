@@ -39,10 +39,21 @@ local Game = {
 	CAST_COOLDOWN = 0.6,
 	-- Jak blisko wody trzeba stać (studs od krawędzi lustra wody).
 	MAX_CAST_DISTANCE = 28,
-	-- Jak daleko przed gracza leci spławik. Klient rysuje go dokładnie tam,
-	-- a serwer w tym samym punkcie mierzy głębokość — jedna liczba, żeby
-	-- obraz nie rozjechał się z mechaniką.
-	CAST_DISTANCE = 22,
+	-- Najkrótszy rzut (moc 0). Najdłuższy to `castRange` wędki — patrz
+	-- Config/Rods. Odległość z mocy liczy `Cast.distanceFor`, wspólnie dla
+	-- klienta i serwera, żeby obraz nie rozjechał się z mechaniką.
+	CAST_MIN_DISTANCE = 8,
+	-- Pełny okres wahadłowego paska mocy: 0 -> 100% -> 0 (sekundy).
+	CAST_POWER_PERIOD = 1.3,
+	-- Po tylu sekundach serwer sam kończy zamach, którego klient nie
+	-- zamienił w rzut ani nie anulował (rozłączenie, zawieszony klient).
+	-- Bez tego postać stałaby z wędką nad głową do końca sesji.
+	CHARGE_TIMEOUT = 8,
+	-- Ile najwyżej fałszywych skubnięć przed braniem.
+	MAX_NIBBLES = 3,
+	-- Zacięcie w tym czasie po skubnięciu płoszy rybę („Spooked"),
+	-- a nie liczy się jako zwykłe „za wcześnie".
+	NIBBLE_WINDOW = 0.7,
 	-- Zapas od krawędzi lustra wody przy dociąganiu punktu zarzucenia.
 	--
 	-- Punkt wyliczony „22 study przed graczem" potrafi wypaść na lądzie:
@@ -129,6 +140,30 @@ local Game = {
 	-- zmieni na ładniejszą i cicho zepsuje ShopController.
 	-- Stała musi być w `shared`, bo klient nie może requireować WorldBuildera.
 	STAND_ATTRIBUTE = "StandKind",
+
+	-- ---------------------------------------------------------------------
+	-- Atrybuty łowienia na postaci
+	-- ---------------------------------------------------------------------
+	-- Ustawia je WYŁĄCZNIE serwer; każdy klient animuje na ich podstawie
+	-- wszystkie postacie w zasięgu. Nazwy są tutaj, bo czytają je obie strony.
+	ATTRIBUTE_PHASE = "FishingPhase",
+	ATTRIBUTE_POWER = "CastPower",
+	ATTRIBUTE_TENSION = "Tension",
+	ATTRIBUTE_SURGING = "FishSurging",
+	ATTRIBUTE_TARGET = "CastTarget",
+	-- Licznik skubnięć. Liczy się ZMIANA wartości, nie sama wartość.
+	ATTRIBUTE_NIBBLES = "FishingNibbles",
+	-- Krok kwantowania napięcia w atrybucie. Napięcie zmienia się 20 razy
+	-- na sekundę; co 5% to najwyżej kilka replikacji na sekundę na walkę.
+	TENSION_ATTRIBUTE_STEP = 0.05,
+
+	-- ---------------------------------------------------------------------
+	-- Narzędzia deweloperskie
+	-- ---------------------------------------------------------------------
+	-- Atrybut na Workspace. Działa TYLKO w Studio: branie po chwili i bez
+	-- skubnięć, żeby dało się testować walkę bez czekania na każdy rzut.
+	DEV_FAST_BITE_ATTRIBUTE = "DevFastBite",
+	DEV_FAST_BITE_DELAY = 0.6,
 	STAND_FISH_BUYER = "FishBuyer",
 	STAND_ROD_SHOP = "RodShop",
 }

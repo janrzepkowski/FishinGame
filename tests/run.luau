@@ -21,6 +21,7 @@
 
 local t = require("./harness")
 
+local Cast = require("../src/shared/Util/Cast")
 local Fight = require("../src/shared/Util/Fight")
 local Format = require("../src/shared/Util/Format")
 local Lake = require("../src/shared/Config/Lake")
@@ -251,5 +252,84 @@ for _, viewport in { { 640, 360 }, { 1013, 432 }, { 1366, 768 }, { 1920, 1080 },
 	end
 end
 t.isTrue("korzen pokrywa caly ekran przy kazdej skali", coversScreen)
+
+-- ---------------------------------------------------------------------------
+t.suite("Cast — rzut z sila")
+
+--[[ Pasek wahadłowy: okres 1,3 s, szczyt w połowie okresu. ]]
+t.near("moc startuje od zera", Cast.powerAt(0, 1.3), 0)
+t.near("szczyt wypada w polowie okresu", Cast.powerAt(0.65, 1.3), 1)
+t.near("po pelnym okresie moc wraca do zera", Cast.powerAt(1.3, 1.3), 0, 1e-6)
+t.near("cwierc okresu to polowa mocy", Cast.powerAt(0.325, 1.3), 0.5)
+t.near("pasek wraca: trzy czwarte okresu to znow polowa", Cast.powerAt(0.975, 1.3), 0.5)
+t.near("drugi okres powtarza pierwszy", Cast.powerAt(1.3 + 0.65, 1.3), 1)
+t.isTrue(
+	"przetrzymanie nie daje wiecej niz trafienie w szczyt",
+	Cast.powerAt(0.9, 1.3) < Cast.powerAt(0.65, 1.3)
+)
+
+--[[ Moc przychodzi od klienta. Każda z tych wartości musi dać poprawny
+     dystans — NaN w szczególności, bo przechodzi przez `math.clamp`. ]]
+t.near("moc ponad zakres jest przycinana", Cast.clampPower(7), 1)
+t.near("moc ujemna jest przycinana", Cast.clampPower(-3), 0)
+t.near("nieskonczonosc jest przycinana", Cast.clampPower(math.huge), 1)
+t.near("NaN staje sie zerem", Cast.clampPower(0 / 0), 0)
+
+t.near("moc zero to rzut minimalny, nie zerowy", Cast.distanceFor(0, 8, 30), 8)
+t.near("pelna moc to zasieg wedki", Cast.distanceFor(1, 8, 30), 30)
+t.near("polowa mocy to srodek zakresu", Cast.distanceFor(0.5, 8, 30), 19)
+t.near("podrobiona moc nie wydluza rzutu", Cast.distanceFor(50, 8, 30), 30)
+t.near("NaN nie psuje dystansu", Cast.distanceFor(0 / 0, 8, 30), 8)
+
+--[[
+	Sens całej mechaniki: mocny rzut z brzegu sięga głębszej półki niż
+	słaby. Jeśli zmiana zasięgu albo półek to zepsuje, rzut znów staje się
+	formalnością i ten test ma o tym powiedzieć.
+]]
+local function shelfFromShore(distance: number): number
+	return Lake.depthAt(point(Lake.CENTER_X, Lake.CENTER_Z + Lake.HALF_SIZE - distance))
+end
+t.isTrue(
+	"mocny rzut z brzegu trafia w glebsza wode niz slaby",
+	shelfFromShore(Cast.distanceFor(1, 8, 30)) > shelfFromShore(Cast.distanceFor(0, 8, 30))
+)
+t.isTrue(
+	"najglebsza polka zostaje poza zasiegiem z brzegu",
+	shelfFromShore(Cast.distanceFor(1, 8, 30)) < Lake.MAX_DEPTH
+)
+
+t.isTrue("daleki rzut leci dluzej", Cast.flightTime(30, 30) > Cast.flightTime(8, 30))
+t.isTrue("najkrotszy lot jest widoczny golym okiem", Cast.flightTime(0, 30) > 0.3)
+t.isTrue("najdluzszy lot nie nudzi", Cast.flightTime(999, 30) < 1.2)
+
+--[[ Skubnięcia: posortowane, rozsunięte, z dala od lądowania i od brania. ]]
+local function nibblesValid(biteDelay: number, times: { number }): boolean
+	local previous = 0.9 - 0.6
+	for _, moment in times do
+		if moment < 0.9 or moment > biteDelay - 0.8 or moment - previous < 0.6 - 1e-9 then
+			return false
+		end
+		previous = moment
+	end
+	return true
+end
+
+t.equal("bez losow nie ma skubniec", #Cast.nibbleTimes(5, {}), 0)
+t.equal("krotkie czekanie nie miesci zadnego", #Cast.nibbleTimes(1.4, { 0.5, 0.5, 0.5 }), 0)
+t.equal("dlugie czekanie miesci trzy", #Cast.nibbleTimes(5, { 0.5, 0.5, 0.5 }), 3)
+t.isTrue(
+	"srednie czekanie obcina liczbe, zamiast je scisnac",
+	#Cast.nibbleTimes(3, { 0.5, 0.5, 0.5 }) < 3
+)
+
+local nibblesOk = true
+for _, biteDelay in { 1.4, 2, 2.75, 3.3, 4, 5 } do
+	for _, roll in { 0, 0.5, 1 } do
+		if not nibblesValid(biteDelay, Cast.nibbleTimes(biteDelay, { roll, roll, roll })) then
+			nibblesOk = false
+		end
+	end
+end
+t.isTrue("skubniecia sa rozsuniete i nie zlewaja sie z braniem", nibblesOk)
 
 t.finish()

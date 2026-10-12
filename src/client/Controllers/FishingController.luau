@@ -3,8 +3,9 @@
 	FishingController — wejście gracza i reakcja na zdarzenia z serwera.
 
 	Cała obsługa akcji to jedna reguła:
-	  stan Idle  -> „zarzucam"  (RequestCast)
-	  inny stan  -> „podcinam"  (RequestReel)
+	  stan Idle  -> wciśnięcie zaczyna ZAMACH, puszczenie RZUCA z mocą
+	                odczytaną z wahadłowego paska (RequestCast)
+	  inny stan  -> wciśnięcie „podcina" (RequestReel)
 
 	Dzięki temu jeden przycisk obsługuje obie akcje, a podcięcie przed braniem
 	jest możliwe — i karane. Wariant, w którym klient blokuje za wczesny klik,
@@ -29,7 +30,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
+local Cast = require(Shared.Util.Cast)
+local GameConfig = require(Shared.Config.Game)
 local Net = require(Shared.Net)
+local Rods = require(Shared.Config.Rods)
+local Spatial = require(Shared.Util.Spatial)
 local Types = require(Shared.Types)
 
 local Bobber = require(script.Parent.Parent.Effects.Bobber)
@@ -42,10 +47,13 @@ local ROD_ATTRIBUTE = "RodId"
 
 local FishingController = {}
 
-export type Phase = "Idle" | "Waiting" | "Biting" | "Fighting"
+export type Phase = "Idle" | "Charging" | "Waiting" | "Biting" | "Fighting"
 
 local player = Players.LocalPlayer
 local phase: Phase = "Idle"
+-- os.clock() początku zamachu. Ten sam moment dostaje pasek mocy, więc
+-- moc przy puszczeniu jest dokładnie tą, którą gracz widział.
+local chargeStartedAt: number? = nil
 local phaseListeners: { (Phase) -> () } = {}
 local reeling = false
 
@@ -149,14 +157,14 @@ function FishingController.setReeling(value: boolean)
 end
 
 --[[
-	Jedyne wejście akcji gracza — spina `Tool.Activated` z desktopa
+	Wciśnięcie głównego przycisku — spina `Tool.Activated` z desktopa
 	i przycisk dotykowy. Dzięki temu obie ścieżki nie mogą się rozjechać.
 
-	W czasie walki kliknięcie nie wysyła nic: tam liczy się TRZYMANIE,
+	W czasie walki wciśnięcie nie wysyła nic: tam liczy się TRZYMANIE,
 	obsługiwane przez `setReeling`.
 ]]
-function FishingController.primaryAction()
-	if phase == "Fighting" then
+function FishingController.press()
+	if phase == "Fighting" or phase == "Charging" then
 		return
 	end
 
@@ -165,10 +173,49 @@ function FishingController.primaryAction()
 	end
 
 	if phase == "Idle" then
-		Net.RequestCast:FireServer()
+		local startedAt = os.clock()
+		chargeStartedAt = startedAt
+		setPhase("Charging")
+		CastMeter.showCharge(startedAt)
+		-- Tylko po to, żeby inni gracze zobaczyli zamach. Mocy tu nie ma.
+		Net.RequestCharge:FireServer(true)
 	else
 		Net.RequestReel:FireServer()
 	end
+end
+
+--[[
+	Puszczenie głównego przycisku: koniec zamachu, rzut.
+
+	Wracamy do `Idle` od razu, nie czekając na serwer. Jeśli rzut przejdzie,
+	`CastStarted` przestawi fazę na `Waiting`; jeśli nie (za daleko od wody,
+	pełna torba), gracz dostaje komunikat i może próbować ponownie, zamiast
+	stać z zamrożonym paskiem.
+]]
+function FishingController.release()
+	local startedAt = chargeStartedAt
+	if phase ~= "Charging" or not startedAt then
+		return
+	end
+
+	chargeStartedAt = nil
+	local power = Cast.powerAt(os.clock() - startedAt, GameConfig.CAST_POWER_PERIOD)
+
+	setPhase("Idle")
+	CastMeter.hide()
+	Net.RequestCast:FireServer(power)
+end
+
+--[[ Przerywa zamach bez rzutu — np. gdy gracz schowa wędkę w jego trakcie. ]]
+local function cancelCharge()
+	if phase ~= "Charging" then
+		return
+	end
+
+	chargeStartedAt = nil
+	setPhase("Idle")
+	CastMeter.hide()
+	Net.RequestCharge:FireServer(false)
 end
 
 function FishingController.onPhaseChanged(listener: (Phase) -> ())
@@ -184,7 +231,10 @@ local function bindTool(instance: Instance)
 	-- Połączenie żyje tyle, co Tool. Przy zmianie wędki stary Tool jest
 	-- niszczony, więc Roblox zbiera je razem z instancją.
 	local tool = instance :: Tool
-	tool.Activated:Connect(FishingController.primaryAction)
+	tool.Activated:Connect(FishingController.press)
+	-- `Deactivated` to puszczenie przycisku — bez niego zamach nie miałby końca.
+	tool.Deactivated:Connect(FishingController.release)
+	tool.Unequipped:Connect(cancelCharge)
 end
 
 local function watchCharacter(character: Model)
@@ -204,6 +254,14 @@ local function watchCharacter(character: Model)
 	-- slot zostawałby podświetlony mimo odłożonej wędki.
 	character.ChildRemoved:Connect(syncEquipped)
 	syncEquipped()
+
+	-- Skubnięcia ogłasza serwer zmianą atrybutu na postaci — tym samym
+	-- kanałem, z którego czytają je inni gracze.
+	character:GetAttributeChangedSignal(GameConfig.ATTRIBUTE_NIBBLES):Connect(function()
+		if phase == "Waiting" then
+			Bobber.nibble()
+		end
+	end)
 
 	-- Plecak powstaje razem z postacią, ale nie zawsze przed tym momentem.
 	task.spawn(function()
@@ -286,6 +344,7 @@ function FishingController.start()
 	player.CharacterRemoving:Connect(function()
 		-- Śmierć w trakcie łowienia: serwer też zeruje stan, ale niezależnie.
 		-- Bez lokalnego sprzątania gracz wstaje z paskiem podcięcia na ekranie.
+		chargeStartedAt = nil
 		setPhase("Idle")
 		CastMeter.hide()
 		CastAnimation.reset()
@@ -293,13 +352,27 @@ function FishingController.start()
 		Hud.setDepth(nil)
 	end)
 
-	Net.CastStarted.OnClientEvent:Connect(function(depth: number)
+	Net.CastStarted.OnClientEvent:Connect(function(depth: number, landing: Vector3)
+		chargeStartedAt = nil
 		setPhase("Waiting")
 		CastMeter.showWaiting()
 		Hud.setDepth(depth)
+
+		-- Czas lotu z odległości, którą spławik faktycznie ma do pokonania.
+		local position = Spatial.characterPosition(player)
+		local distance = if position
+			then (Vector3.new(landing.X, position.Y, landing.Z) - position).Magnitude
+			else GameConfig.CAST_MIN_DISTANCE
+		local tool = heldRod()
+		local rodId = if tool then tool:GetAttribute(ROD_ATTRIBUTE) else nil
+		local rod = if typeof(rodId) == "string" then Rods.find(rodId) else nil
+		local flightTime = Cast.flightTime(distance, if rod then rod.castRange else distance)
+
 		-- Spławik wylatuje w momencie puszczenia żyłki przez animację,
 		-- a nie na starcie zamachu — inaczej wyprzedzałby ruch ręki.
-		CastAnimation.playCast(Bobber.launch)
+		CastAnimation.playCast(function()
+			Bobber.launch(landing, flightTime)
+		end)
 	end)
 
 	Net.BiteStarted.OnClientEvent:Connect(function(window: number)

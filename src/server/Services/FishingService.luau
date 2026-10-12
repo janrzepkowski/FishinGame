@@ -4,10 +4,11 @@
 
 	Przebieg jednego zarzucenia:
 
-	  klient: RequestCast    -> walidacja (wędka, cooldown, odległość,
+	  klient: RequestCharge  -> zamach; faza „Charging" widoczna dla innych
+	  klient: RequestCast    -> walidacja (moc, wędka, cooldown, odległość,
 	                            miejsce w torbie) i LOSOWANIE RYBY
 	  serwer: CastStarted    -> klient pokazuje spławik i głębokość
-	        [zwłoka 1,4-5,0 s * biteSpeed wędki]
+	        [zwłoka 1,4-5,0 s * biteSpeed wędki, po drodze 0-3 skubnięcia]
 	  serwer: BiteStarted    -> klient startuje pasek podcięcia
 	  klient: RequestReel    -> serwer mierzy U SIEBIE czas reakcji
 	  serwer: FightStarted   -> zaczyna się hol
@@ -29,12 +30,19 @@
 	   boolean. Nie ma czego podrobić: podanie `true` w kółko to dokładnie
 	   to samo, co trzymanie przycisku, czyli najszybszy sposób na zerwanie
 	   żyłki.
+
+	4. To, co postać ROBI, serwer ogłasza atrybutami na jej modelu
+	   (`FishingPhase`, `CastPower`, `Tension`, punkt lądowania). Każdy
+	   klient animuje z nich wszystkie postacie w zasięgu — serwer nie
+	   wysyła pozy, tylko mówi, co się dzieje.
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
 
+local Cast = require(ReplicatedStorage.Shared.Util.Cast)
 local Fight = require(ReplicatedStorage.Shared.Util.Fight)
 local Fish = require(ReplicatedStorage.Shared.Config.Fish)
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
@@ -61,6 +69,8 @@ type CastState = {
 	reelWindow: number,
 	-- os.clock() w momencie wysłania BiteStarted.
 	biteAt: number,
+	-- os.clock() ostatniego skubnięcia; 0, gdy żadnego jeszcze nie było.
+	nibbleAt: number,
 
 	-- Wypełniane dopiero po zacięciu.
 	perfect: boolean,
@@ -76,6 +86,14 @@ type CastState = {
 local FishingService = {}
 
 local states: { [Player]: CastState } = {}
+-- Gracze w trakcie zamachu -> znacznik zamachu. Znacznik pozwala
+-- opóźnionemu timeoutowi rozpoznać, że to nadal TEN SAM zamach.
+local charging: { [Player]: number } = {}
+local chargeCounter = 0
+-- Wartość atrybutu skubnięć. Rośnie przez cały czas życia serwera i nigdy
+-- się nie powtarza: klient reaguje na ZMIANĘ atrybutu, a licznik zerowany
+-- co zarzucenie dałby dwa razy z rzędu „1" — i drugie skubnięcie by przepadło.
+local nibbleCounter = 0
 local nextCastAt: { [Player]: number } = {}
 local castCounter = 0
 local generator = Random.new()
@@ -128,11 +146,63 @@ local function rollCatch(definition: Types.FishDefinition, perfect: boolean): Ty
 end
 
 -- ---------------------------------------------------------------------------
+-- Stan widoczny dla wszystkich
+-- ---------------------------------------------------------------------------
+
+--[[
+	Ogłasza fazę łowienia atrybutem na postaci.
+
+	Atrybut, a nie Remote do wszystkich: gracz, który dołączy albo podejdzie
+	w trakcie cudzej walki, dostaje aktualną wartość razem z postacią.
+	Zdarzenie przepadłoby dla każdego, kogo nie było w chwili wysłania.
+]]
+local function publishPhase(player: Player, phase: Types.FishingPhase)
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	character:SetAttribute(GameConfig.ATTRIBUTE_PHASE, phase)
+
+	if phase ~= "Fighting" then
+		character:SetAttribute(GameConfig.ATTRIBUTE_TENSION, 0)
+		character:SetAttribute(GameConfig.ATTRIBUTE_SURGING, false)
+	end
+end
+
+--[[ Napięcie dla obserwatorów — kwantowane i tylko przy zmianie, żeby
+     20 ticków walki na sekundę nie zamieniło się w 20 replikacji. ]]
+local function publishTension(player: Player, tension: number, surging: boolean)
+	local character = player.Character
+	if not character then
+		return
+	end
+
+	local step = GameConfig.TENSION_ATTRIBUTE_STEP
+	local quantized = math.floor(math.clamp(tension, 0, 1) / step + 0.5) * step
+
+	if character:GetAttribute(GameConfig.ATTRIBUTE_TENSION) ~= quantized then
+		character:SetAttribute(GameConfig.ATTRIBUTE_TENSION, quantized)
+	end
+	if character:GetAttribute(GameConfig.ATTRIBUTE_SURGING) ~= surging then
+		character:SetAttribute(GameConfig.ATTRIBUTE_SURGING, surging)
+	end
+end
+
+local function isFastBite(): boolean
+	-- `IsStudio` jest tu warunkiem twardym: atrybut na Workspace w żywej
+	-- grze nie może skrócić nikomu czekania.
+	return RunService:IsStudio()
+		and Workspace:GetAttribute(GameConfig.DEV_FAST_BITE_ATTRIBUTE) == true
+end
+
+-- ---------------------------------------------------------------------------
 -- Zakończenie zarzucenia
 -- ---------------------------------------------------------------------------
 
 local function resolve(player: Player, result: Types.CastResult)
 	states[player] = nil
+	publishPhase(player, "Idle")
 	Net.CastResolved:FireClient(player, result)
 end
 
@@ -214,6 +284,7 @@ local function beginFight(player: Player, state: CastState)
 
 	scheduleSurge(state, now)
 
+	publishPhase(player, "Fighting")
 	Net.FightStarted:FireClient(player)
 	Analytics.funnelStep(player, 2, "Hooked")
 end
@@ -260,6 +331,8 @@ local function stepFight(
 		return "Escaped"
 	end
 
+	publishTension(player, state.tension, surging)
+
 	Net.FightUpdate:FireClient(
 		player,
 		{
@@ -276,27 +349,85 @@ end
 -- Handlery
 -- ---------------------------------------------------------------------------
 
-local function onRequestCast(player: Player)
+--[[ Kończy zamach bez rzutu i zdejmuje pozę z postaci. ]]
+local function cancelCharge(player: Player)
+	if charging[player] == nil then
+		return
+	end
+	charging[player] = nil
+
+	if not states[player] then
+		publishPhase(player, "Idle")
+	end
+end
+
+local function onRequestCharge(player: Player, wantsCharge: unknown)
+	if typeof(wantsCharge) ~= "boolean" then
+		return
+	end
+
+	if not wantsCharge then
+		cancelCharge(player)
+		return
+	end
+
+	if states[player] or charging[player] ~= nil then
+		return -- trwa zarzucenie albo zamach już ogłoszony
+	end
+
+	if os.clock() < (nextCastAt[player] or 0) then
+		return
+	end
+
+	if not RodService.getHeldRod(player) then
+		return -- cicho: komunikat „weź wędkę" poleci przy samym rzucie
+	end
+
+	chargeCounter += 1
+	local token = chargeCounter
+	charging[player] = token
+	publishPhase(player, "Charging")
+
+	task.delay(GameConfig.CHARGE_TIMEOUT, function()
+		if charging[player] == token then
+			cancelCharge(player)
+		end
+	end)
+end
+
+local function onRequestCast(player: Player, rawPower: unknown)
+	-- Wejście z klienta: najpierw typ, potem zakres (`clampPower` łapie NaN).
+	if typeof(rawPower) ~= "number" then
+		return
+	end
+	local power = Cast.clampPower(rawPower :: number)
+
 	if states[player] then
 		return -- już trwa zarzucenie
 	end
 
+	-- Od tego miejsca każde wyjście bez rzutu musi zdjąć pozę zamachu,
+	-- inaczej postać zostałaby z wędką nad głową do timeoutu.
 	local now = os.clock()
 	if now < (nextCastAt[player] or 0) then
+		cancelCharge(player)
 		return -- cooldown; cicho, bo to zwykły spam klikaniem
 	end
 
 	local profile = DataService.get(player)
 	if not profile then
+		cancelCharge(player)
 		return -- profil jeszcze się wczytuje
 	end
 
 	if not RodService.getHeldRod(player) then
+		cancelCharge(player)
 		Net.Notify:FireClient(player, "Weź wędkę do ręki.", "Warning")
 		return
 	end
 
 	if #profile.inventory >= GameConfig.MAX_INVENTORY then
+		charging[player] = nil
 		Net.Notify:FireClient(player, "Torba pełna — sprzedaj połów w skupie.", "Warning")
 		fail(player, "InventoryFull")
 		return
@@ -304,6 +435,7 @@ local function onRequestCast(player: Player)
 
 	local root = Spatial.characterRoot(player)
 	if not root then
+		cancelCharge(player)
 		return -- respawn w toku
 	end
 
@@ -311,25 +443,29 @@ local function onRequestCast(player: Player)
 	-- tylko to drugie: jak daleko od brzegu stoi gracz.
 	local fromShore = math.max(-LakeConfig.edgeDistance(root.Position), 0)
 	if fromShore > GameConfig.MAX_CAST_DISTANCE then
+		cancelCharge(player)
 		Net.Notify:FireClient(player, "Podejdź bliżej wody.", "Warning")
 		return
 	end
 
-	-- Ten sam punkt, w którym klient postawi spławik — łącznie z dociągnięciem
-	-- do wody. Patrz komentarz przy CAST_SHORE_MARGIN.
+	local rod = Rods.find(profile.equippedRod) or Rods.expect(GameConfig.STARTING_ROD)
+
+	-- Punkt lądowania liczy SERWER, z własnej pozycji postaci. Klient go
+	-- nie podaje, tylko dostaje z powrotem w `CastStarted` — łącznie
+	-- z dociągnięciem do wody (patrz komentarz przy CAST_SHORE_MARGIN).
+	local distance = Cast.distanceFor(power, GameConfig.CAST_MIN_DISTANCE, rod.castRange)
 	local target = LakeConfig.clampToWater(
-		Spatial.castTarget(root.CFrame, GameConfig.CAST_DISTANCE),
+		Spatial.castTarget(root.CFrame, distance),
 		GameConfig.CAST_SHORE_MARGIN
 	)
 	local depth = LakeConfig.depthAt(target)
 	if depth <= 0 then
 		-- Nieosiągalne po dociągnięciu, chyba że ktoś zepsuje geometrię
 		-- jeziora. Wtedy lepiej zobaczyć ostrzeżenie niż łowić w trawie.
+		cancelCharge(player)
 		warn("[FishingService] punkt zarzucenia poza wodą mimo clampToWater")
 		return
 	end
-
-	local rod = Rods.find(profile.equippedRod) or Rods.expect(GameConfig.STARTING_ROD)
 
 	-- Głębokość wchodzi w to samo szczęście, co wędka, więc jej wpływ też jest
 	-- podnoszony do potęgi rzadkości. Dwa niezależne mnożniki rozdzieliłyby
@@ -346,6 +482,7 @@ local function onRequestCast(player: Player)
 		fish = pickFish(rod.luck * depthLuck),
 		reelWindow = rod.reelWindow,
 		biteAt = 0,
+		nibbleAt = 0,
 		perfect = false,
 		params = nil,
 		progress = 0,
@@ -356,12 +493,51 @@ local function onRequestCast(player: Player)
 		nextSurgeAt = 0,
 	}
 	nextCastAt[player] = now + GameConfig.CAST_COOLDOWN
+	charging[player] = nil
 
-	Net.CastStarted:FireClient(player, depth)
+	local landing = Vector3.new(target.X, LakeConfig.SURFACE_Y, target.Z)
+	local character = player.Character
+	if character then
+		-- Moc i cel PRZED fazą: klient reaguje na zmianę fazy i ma wtedy
+		-- zastać już komplet danych o rzucie.
+		character:SetAttribute(GameConfig.ATTRIBUTE_POWER, power)
+		character:SetAttribute(GameConfig.ATTRIBUTE_TARGET, landing)
+	end
+	publishPhase(player, "Waiting")
+
+	Net.CastStarted:FireClient(player, depth, landing)
 	Analytics.funnelStep(player, 1, "Cast")
 
-	local biteDelay = generator:NextNumber(GameConfig.MIN_BITE_DELAY, GameConfig.MAX_BITE_DELAY)
-		* rod.biteSpeed
+	local fastBite = isFastBite()
+	local biteDelay = if fastBite
+		then GameConfig.DEV_FAST_BITE_DELAY
+		else generator:NextNumber(GameConfig.MIN_BITE_DELAY, GameConfig.MAX_BITE_DELAY)
+			* rod.biteSpeed
+
+	-- Skubnięcia: liczbę i momenty losujemy od razu, przy zarzuceniu.
+	local rolls: { number } = {}
+	if not fastBite then
+		for _ = 1, generator:NextInteger(0, GameConfig.MAX_NIBBLES) do
+			table.insert(rolls, generator:NextNumber())
+		end
+	end
+
+	for _, nibbleDelay in Cast.nibbleTimes(biteDelay, rolls) do
+		task.delay(nibbleDelay, function()
+			local state = states[player]
+			if not state or state.castId ~= castId or state.phase ~= "Waiting" then
+				return
+			end
+
+			state.nibbleAt = os.clock()
+			nibbleCounter += 1
+
+			local model = player.Character
+			if model then
+				model:SetAttribute(GameConfig.ATTRIBUTE_NIBBLES, nibbleCounter)
+			end
+		end)
+	end
 
 	task.delay(biteDelay, function()
 		local state = states[player]
@@ -378,6 +554,7 @@ local function onRequestCast(player: Player)
 
 		state.phase = "Biting"
 		state.biteAt = os.clock()
+		publishPhase(player, "Biting")
 		Net.BiteStarted:FireClient(player, state.reelWindow)
 
 		task.delay(state.reelWindow, function()
@@ -404,8 +581,14 @@ local function onRequestReel(player: Player)
 		-- Podcięcie przed braniem: tracimy zarzucenie i krótka blokada.
 		-- Bez tej kary optymalną strategią byłoby trzymanie autoklikera,
 		-- który i tak kiedyś trafi w okno.
-		nextCastAt[player] = os.clock() + GameConfig.TOO_EARLY_PENALTY
-		fail(player, "TooEarly")
+		local now = os.clock()
+		nextCastAt[player] = now + GameConfig.TOO_EARLY_PENALTY
+
+		-- Zacięcie tuż po skubnięciu to inny błąd niż klikanie w ciemno:
+		-- gracz zareagował na sygnał, tylko nie na ten. Mówimy mu to
+		-- osobnym wynikiem, bo inaczej nie nauczy się ich odróżniać.
+		local spooked = state.nibbleAt > 0 and now - state.nibbleAt <= GameConfig.NIBBLE_WINDOW
+		fail(player, if spooked then "Spooked" else "TooEarly")
 		return
 	end
 
@@ -439,12 +622,14 @@ end
 
 local function clearPlayer(player: Player)
 	states[player] = nil
+	charging[player] = nil
 	nextCastAt[player] = nil
 end
 
 -- ---------------------------------------------------------------------------
 
 function FishingService.start()
+	Net.RequestCharge.OnServerEvent:Connect(onRequestCharge)
 	Net.RequestCast.OnServerEvent:Connect(onRequestCast)
 	Net.RequestReel.OnServerEvent:Connect(onRequestReel)
 	Net.RequestReeling.OnServerEvent:Connect(onRequestReeling)
@@ -456,6 +641,7 @@ function FishingService.start()
 	local function watchCharacter(player: Player)
 		player.CharacterRemoving:Connect(function()
 			states[player] = nil
+			charging[player] = nil
 		end)
 	end
 
