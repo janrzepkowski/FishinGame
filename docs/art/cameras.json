@@ -1,0 +1,31 @@
+{
+  "note": "Ujęcia referencyjne do audytu graficznego. Współrzędne w studach, układ świata. Używać jako camera_position / look_at_position w screen_capture podczas playtestu (świat nie istnieje w trybie edycji).",
+  "cameras": [
+    {
+      "name": "panorama",
+      "position": [120, 90, 110],
+      "lookAt": [0, 0, -70]
+    },
+    {
+      "name": "pomost",
+      "position": [22, 12, -22],
+      "lookAt": [0, 2, -90]
+    },
+    {
+      "name": "plac_poziom_gracza",
+      "position": [0, 5.5, 30],
+      "lookAt": [0, 5, -10]
+    },
+    {
+      "name": "z_wody_na_brzeg",
+      "position": [30, 3, -130],
+      "lookAt": [0, 6, -10]
+    },
+    {
+      "name": "ui_lowienie",
+      "position": [0.26, 10.7, -87.71],
+      "lookAt": [-0.05, 5.95, -99.27],
+      "requires": "Kamera gracza, nie nadpisana: postać na końcu pomostu (0, 4.45, -99.3), wędka wyjęta, zarzut w toku. Zrzut bez parametrów kamery, inaczej UI nie odpowiada stanowi gry."
+    }
+  ]
+}
