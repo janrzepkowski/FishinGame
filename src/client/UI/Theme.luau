@@ -59,6 +59,13 @@ Theme.COLOR = table.freeze({
 	danger = Color3.fromRGB(240, 101, 110),
 	coin = Color3.fromRGB(255, 206, 85),
 	water = Color3.fromRGB(47, 168, 200),
+
+	-- Kolory „cukierkowego" HUD-u. `outline` to granatowy kontur jak
+	-- w kreskówce — odróżnia pigułki HUD-u od zwykłych, szarych ramek
+	-- (`stroke`), które zostają w panelach.
+	outline = Color3.fromRGB(40, 46, 84),
+	pink = Color3.fromRGB(255, 108, 172),
+	purple = Color3.fromRGB(156, 100, 255),
 })
 
 Theme.SPACE = table.freeze({ xs = 4, sm = 8, md = 12, lg = 16, xl = 24 })
@@ -89,7 +96,7 @@ Theme.SPACE = table.freeze({ xs = 4, sm = 8, md = 12, lg = 16, xl = 24 })
 -- Wysokość HUD-u. STAŁA, nie `AutomaticSize`: wskaźnik głębokości pojawia się
 -- i znika przy każdym zarzuceniu, a panel zmieniający wtedy rozmiar skakałby
 -- graczowi przed oczami w najgorszym momencie.
-Theme.HUD_BAND = table.freeze({ Desktop = 196, Tablet = 196, Phone = 158 })
+Theme.HUD_BAND = table.freeze({ Desktop = 236, Tablet = 236, Phone = 222 })
 
 -- Miejsce zajęte przez pasek łowienia, licząc od dolnej krawędzi stosu.
 Theme.CAST_BAND = table.freeze({ Desktop = 162, Tablet = 162, Phone = 148 })
@@ -119,6 +126,12 @@ Theme.TEXT = table.freeze({ micro = 11, small = 13, body = 15, lead = 17, title 
 Theme.FONT = Enum.Font.GothamMedium
 Theme.FONT_BOLD = Enum.Font.GothamBold
 Theme.FONT_BLACK = Enum.Font.GothamBlack
+-- Zaokrąglona, gruba czcionka „zabawkowa" — liczby w HUD-zie. Standard
+-- gier dla dzieci na Robloxie; Gotham przy niej wygląda jak arkusz kalkulacyjny.
+Theme.FONT_DISPLAY = Enum.Font.FredokaOne
+
+-- Grubość konturu „naklejkowych" elementów (pigułki HUD-u, ikony).
+Theme.OUTLINE = 3
 
 -- ---------------------------------------------------------------------------
 -- Prymitywy
@@ -167,6 +180,81 @@ function Theme.stroke(color: Color3?, thickness: number?): UIStroke
 		Thickness = thickness or 1,
 		ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
 	}) :: UIStroke
+end
+
+--[[
+	Obrys LITER — biały napis z granatowym konturem.
+
+	`Contextual` sprawia, że UIStroke obrysowuje tekst, a nie ramkę. Napis
+	czyta się wtedy na każdym tle (złota pigułka, woda, niebo) bez dobierania
+	koloru tekstu. Tylko dla etykiet BEZ UIStroke na ramce — drugi UIStroke
+	na tym samym obiekcie nie zostałby narysowany.
+]]
+function Theme.outline(label: TextLabel | TextButton, color: Color3?, thickness: number?)
+	Theme.create("UIStroke", {
+		Color = color or Theme.COLOR.outline,
+		Thickness = thickness or 2,
+		ApplyStrokeMode = Enum.ApplyStrokeMode.Contextual,
+		LineJoinMode = Enum.LineJoinMode.Round,
+		Parent = label,
+	})
+end
+
+--[[
+	Pionowy gradient „cukierka": jasna góra, ciemniejsza dolna warga.
+
+	UIGradient MNOŻY kolor tła, więc jeden gradient działa na każdym
+	kolorze — biel nic nie zmienia, szarość przyciemnia. Ostry skok przy
+	0,72 wygląda jak gruba, wypukła krawędź.
+]]
+function Theme.candyGradient(lip: number?): UIGradient
+	local shade = 1 - (lip or 0.22)
+	return Theme.create("UIGradient", {
+		Rotation = 90,
+		Color = ColorSequence.new({
+			ColorSequenceKeypoint.new(0, Color3.new(1, 1, 1)),
+			ColorSequenceKeypoint.new(0.7, Color3.new(0.93, 0.93, 0.93)),
+			ColorSequenceKeypoint.new(0.72, Color3.new(shade, shade, shade)),
+			ColorSequenceKeypoint.new(1, Color3.new(shade, shade, shade)),
+		}),
+	}) :: UIGradient
+end
+
+--[[ Okrągła ikona z glifem i granatowym konturem — monety, torba, rybka. ]]
+function Theme.icon(
+	glyph: string,
+	color: Color3,
+	size: number,
+	props: { [string]: any }?
+): TextLabel
+	local merged: { [string]: any } = {
+		Name = "Icon",
+		Size = UDim2.fromOffset(size, size),
+		BackgroundColor3 = color,
+		BackgroundTransparency = 0,
+		BorderSizePixel = 0,
+		Font = Theme.FONT_DISPLAY,
+		TextSize = math.floor(size * 0.55),
+		TextColor3 = Color3.new(1, 1, 1),
+		-- Obrys liter przez `TextStroke`: ramka ma już UIStroke, a drugi
+		-- UIStroke na tym samym obiekcie nie byłby rysowany.
+		TextStrokeColor3 = Theme.COLOR.outline,
+		TextStrokeTransparency = 0.15,
+		TextXAlignment = Enum.TextXAlignment.Center,
+		Text = glyph,
+	}
+	if props then
+		for key, value in props do
+			merged[key] = value
+		end
+	end
+
+	return Theme.create(
+		"TextLabel",
+		merged,
+		Theme.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+		Theme.stroke(Theme.COLOR.outline, Theme.OUTLINE)
+	) :: TextLabel
 end
 
 function Theme.padding(pixels: number, horizontal: number?): UIPadding
@@ -442,6 +530,42 @@ function Theme.badge(text: string, color: Color3, props: { [string]: any }?): Fr
 		Theme.padding(2, 8),
 		label
 	) :: Frame
+end
+
+-- ---------------------------------------------------------------------------
+-- Animacje „soczystości"
+-- ---------------------------------------------------------------------------
+
+local function popScale(target: GuiObject): UIScale
+	local existing = target:FindFirstChild("PopScale")
+	if existing and existing:IsA("UIScale") then
+		return existing
+	end
+	return Theme.create("UIScale", { Name = "PopScale", Scale = 1, Parent = target }) :: UIScale
+end
+
+--[[ Wyskok elementu: z małego do pełnego rozmiaru z przestrzeleniem. ]]
+function Theme.pop(target: GuiObject, from: number?, time: number?)
+	local scale = popScale(target)
+	scale.Scale = from or 0.6
+	TweenService:Create(
+		scale,
+		TweenInfo.new(time or 0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+		{ Scale = 1 }
+	):Play()
+end
+
+--[[ Krótkie „bum" istniejącego elementu — np. licznik monet po sprzedaży.
+     Osobny UIScale (`PopScale`), a nie zmiana Size: Size przesunąłby
+     sąsiadów w UIListLayout przy każdym podskoku. ]]
+function Theme.bump(target: GuiObject, strength: number?)
+	local scale = popScale(target)
+	scale.Scale = 1 + (strength or 0.18)
+	TweenService:Create(
+		scale,
+		TweenInfo.new(0.4, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out),
+		{ Scale = 1 }
+	):Play()
 end
 
 -- ---------------------------------------------------------------------------
