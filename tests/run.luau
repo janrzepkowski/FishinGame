@@ -25,6 +25,7 @@ local Fight = require("../src/shared/Util/Fight")
 local Format = require("../src/shared/Util/Format")
 local Lake = require("../src/shared/Config/Lake")
 local Rng = require("../src/shared/Util/Rng")
+local UiScale = require("../src/shared/Util/UiScale")
 
 --[[ Atrapa `Random` — oddaje z góry ustaloną sekwencję. Dzięki temu test
      sprawdza LOGIKĘ wyboru, a nie jakość generatora Robloxa. ]]
@@ -228,5 +229,27 @@ t.isTrue(
 )
 t.isTrue("najdluzsza walka miesci sie w 10 s czystego holu", Fight.minimumDuration(endurance) < 10)
 t.isTrue("najkrotsza walka trwa dluzej niz sekunde", Fight.minimumDuration(weakest) > 1)
+
+-- ---------------------------------------------------------------------------
+t.suite("UiScale — skala interfejsu")
+
+t.near("rozdzielczosc projektowa daje skale 1", UiScale.scaleFor(1366, 768), 1)
+t.near("male okno zatrzymuje sie na dolnym progu", UiScale.scaleFor(1013, 432), UiScale.MIN)
+t.near("4K zatrzymuje sie na gornym progu", UiScale.scaleFor(3840, 2160), UiScale.MAX)
+t.near("decyduje ciasniejszy wymiar", UiScale.scaleFor(1366 * 2, 768 * 1.1), 1.1)
+
+--[[
+	Korzeń UI po przemnożeniu przez UIScale ma pokrywać DOKŁADNIE cały ekran.
+	Gdy tak nie jest, wszystko zakotwiczone do prawej lub dolnej krawędzi
+	ląduje w złym miejscu — a na 1366x768 tego nie widać, bo skala wynosi 1.
+]]
+local coversScreen = true
+for _, viewport in { { 640, 360 }, { 1013, 432 }, { 1366, 768 }, { 1920, 1080 }, { 3840, 2160 } } do
+	local scale = UiScale.scaleFor(viewport[1], viewport[2])
+	if math.abs(scale * UiScale.rootExtent(scale) - 1) > 1e-9 then
+		coversScreen = false
+	end
+end
+t.isTrue("korzen pokrywa caly ekran przy kazdej skali", coversScreen)
 
 t.finish()

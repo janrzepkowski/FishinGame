@@ -78,6 +78,9 @@ function Hud.mount(parent: Instance)
 	coins.TextColor3 = Theme.COLOR.coin
 	coins.TextSize = Theme.TEXT.lead
 	coins.Font = Theme.FONT_BLACK
+	-- Licznik odświeża się tylko przy ZMIANIE wartości, a nowy gracz zaczyna
+	-- od zera i zostaje przy zerze — bez tego wiersz monet byłby pusty.
+	coins.Text = Format.coins(displayedCoins)
 
 	local caughtRow, caught = statRow(2, "❖", Theme.COLOR.accent)
 	local bagRow, bag = statRow(3, "▦", Theme.COLOR.textMuted)

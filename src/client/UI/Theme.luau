@@ -25,9 +25,13 @@
 	sprawdzane element po elemencie i działają bez rzutowań.
 ]]
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
+
+local Shared = ReplicatedStorage:WaitForChild("Shared")
+local UiScale = require(Shared.Util.UiScale)
 
 local Theme = {}
 
@@ -444,13 +448,13 @@ end
 -- Responsywność
 -- ---------------------------------------------------------------------------
 
--- Rozdzielczość, w której projektowaliśmy odstępy i rozmiary tekstu.
-local DESIGN = Vector2.new(1366, 768)
+local DESIGN = Vector2.new(UiScale.DESIGN_WIDTH, UiScale.DESIGN_HEIGHT)
 
 local layoutListeners: { (Device, Vector2) -> () } = {}
 local currentDevice: Device = "Desktop"
 local currentViewport = DESIGN
 local rootScale: UIScale? = nil
+local rootFrame: Frame? = nil
 
 local function classify(viewport: Vector2): Device
 	if viewport.X < 700 then
@@ -460,19 +464,6 @@ local function classify(viewport: Vector2): Device
 		return "Tablet"
 	end
 	return "Desktop"
-end
-
---[[
-	Mnożnik interfejsu dla danego viewportu.
-
-	Dolne ograniczenie (0.82) jest WAŻNIEJSZE niż wierność projektowi:
-	na telefonie proporcjonalne pomniejszenie dałoby przyciski poniżej
-	progu trafialności palcem. Lepiej, żeby UI zajmowało tam więcej ekranu.
-	Górne (1.3) chroni przed olbrzymimi panelami na 4K.
-]]
-local function scaleFor(viewport: Vector2): number
-	local raw = math.min(viewport.X / DESIGN.X, viewport.Y / DESIGN.Y)
-	return math.clamp(raw, 0.82, 1.3)
 end
 
 function Theme.device(): Device
@@ -502,9 +493,14 @@ local function refresh()
 	currentViewport = camera.ViewportSize
 	currentDevice = classify(currentViewport)
 
-	local scale = rootScale
-	if scale then
-		scale.Scale = scaleFor(currentViewport)
+	local scale, frame = rootScale, rootFrame
+	if scale and frame then
+		local factor = UiScale.scaleFor(currentViewport.X, currentViewport.Y)
+		scale.Scale = factor
+		-- UIScale mnoży też rozmiar samego korzenia; bez tej poprawki korzeń
+		-- nie pokrywa ekranu przy skali innej niż 1 (patrz UiScale.rootExtent).
+		local extent = UiScale.rootExtent(factor)
+		frame.Size = UDim2.fromScale(extent, extent)
 	end
 
 	for _, listener in table.clone(layoutListeners) do
@@ -530,6 +526,7 @@ function Theme.mountRoot(screen: ScreenGui): Frame
 		BackgroundTransparency = 1,
 		Parent = screen,
 	}, scale) :: Frame
+	rootFrame = root
 
 	local function bindCamera()
 		local camera = Workspace.CurrentCamera
