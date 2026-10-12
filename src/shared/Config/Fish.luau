@@ -28,11 +28,11 @@ local RARITY_TIER: { [Rarity]: number } = table.freeze({
 })
 
 local RARITY_COLOR: { [Rarity]: Color3 } = table.freeze({
-	Common = Color3.fromRGB(198, 203, 211),
-	Uncommon = Color3.fromRGB(110, 215, 120),
-	Rare = Color3.fromRGB(90, 160, 255),
-	Epic = Color3.fromRGB(190, 110, 255),
-	Legendary = Color3.fromRGB(255, 190, 70),
+	Common = Color3.fromRGB(170, 222, 255),
+	Uncommon = Color3.fromRGB(104, 222, 112),
+	Rare = Color3.fromRGB(72, 132, 255),
+	Epic = Color3.fromRGB(196, 104, 255),
+	Legendary = Color3.fromRGB(255, 196, 48),
 })
 
 local RARITY_LABEL: { [Rarity]: string } = table.freeze({

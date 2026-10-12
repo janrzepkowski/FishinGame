@@ -45,11 +45,11 @@ local SHOW_TIME_PER_TIER = 0.35
 local STOW_TIME = 0.3
 
 local CONFETTI = {
-	Color3.fromRGB(255, 206, 85),
-	Color3.fromRGB(95, 208, 138),
-	Color3.fromRGB(79, 168, 255),
-	Color3.fromRGB(240, 160, 220),
-	Color3.fromRGB(250, 250, 246),
+	Color3.fromRGB(255, 206, 48),
+	Color3.fromRGB(96, 222, 74),
+	Color3.fromRGB(64, 208, 255),
+	Color3.fromRGB(255, 104, 182),
+	Color3.fromRGB(170, 104, 255),
 }
 
 local player = Players.LocalPlayer
@@ -169,7 +169,8 @@ local function buildLabel(
 	definition: Types.FishDefinition,
 	caught: Types.CaughtFish,
 	perfect: boolean,
-	record: boolean
+	record: boolean,
+	compact: boolean
 )
 	local accent = Fish.RARITY_COLOR[definition.rarity]
 
@@ -177,7 +178,8 @@ local function buildLabel(
 	billboard.Name = "CatchLabel"
 	billboard.Adornee = adornee
 	billboard.LightInfluence = 0
-	billboard.Size = UDim2.fromOffset(260, 110)
+	billboard.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+	billboard.Size = UDim2.fromOffset(300, 130)
 	billboard.StudsOffsetWorldSpace = Vector3.new(0, 2.6, 0)
 
 	local banner = ""
@@ -193,26 +195,26 @@ local function buildLabel(
 		Name = "Banner",
 		Size = UDim2.new(1, 0, 0, 20),
 		LayoutOrder = 1,
-		Font = Theme.FONT_BLACK,
+		Font = Theme.FONT_DISPLAY,
 		TextSize = Theme.TEXT.body,
 		TextColor3 = Theme.COLOR.coin,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextStrokeTransparency = 0.4,
 		Text = banner,
 		Visible = banner ~= "",
 	})
+	Theme.outline(bannerLabel, Theme.COLOR.outline, 2)
 
 	local nameLabel = Theme.label({
 		Name = "Name",
-		Size = UDim2.new(1, 0, 0, 30),
+		Size = UDim2.new(1, 0, 0, 34),
 		LayoutOrder = 2,
-		Font = Theme.FONT_BLACK,
-		TextSize = Theme.TEXT.title,
+		Font = Theme.FONT_DISPLAY,
+		TextSize = Theme.TEXT.title + 4,
 		TextColor3 = accent,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextStrokeTransparency = 0.35,
 		Text = definition.displayName,
 	})
+	Theme.outline(nameLabel, Theme.COLOR.outline, 3)
 
 	local detailLabel = Theme.label({
 		Name = "Detail",
@@ -221,21 +223,32 @@ local function buildLabel(
 		Font = Theme.FONT_BOLD,
 		TextSize = Theme.TEXT.small,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextStrokeTransparency = 0.4,
 		Text = `{Fish.RARITY_LABEL[definition.rarity]}  ·  {Format.mass(caught.mass)}`,
 	})
+	Theme.outline(detailLabel, Theme.COLOR.outline, 2)
 
 	local priceLabel = Theme.label({
 		Name = "Price",
-		Size = UDim2.new(1, 0, 0, 24),
+		Size = UDim2.new(1, 0, 0, 28),
 		LayoutOrder = 4,
-		Font = Theme.FONT_BLACK,
-		TextSize = Theme.TEXT.lead,
+		Font = Theme.FONT_DISPLAY,
+		TextSize = Theme.TEXT.title,
 		TextColor3 = Theme.COLOR.coin,
 		TextXAlignment = Enum.TextXAlignment.Center,
-		TextStrokeTransparency = 0.35,
 		Text = "+0",
 	})
+	Theme.outline(priceLabel, Theme.COLOR.outline, 2.5)
+
+	if compact then
+		-- Nazwę, rzadkość i rekord pokazuje już baner u góry ekranu
+		-- (`UI/Celebration`). Dwa napisy o tym samym nachodziły na siebie
+		-- i na rybę, więc tutaj zostaje sama cena — POD rybą, z dala od banera.
+		bannerLabel.Visible = false
+		nameLabel.Visible = false
+		detailLabel.Visible = false
+		billboard.Size = UDim2.fromOffset(220, 40)
+		billboard.StudsOffsetWorldSpace = Vector3.new(0, -2.4, 0)
+	end
 
 	local stack = Theme.create("Frame", {
 		Name = "Stack",
@@ -253,7 +266,7 @@ local function buildLabel(
 		{ Scale = 1 }
 	):Play()
 
-	if banner ~= "" then
+	if banner ~= "" and not compact then
 		-- Pulsujący napis: jedyny element, który rusza się przez cały pokaz.
 		local pulse = Instance.new("UIScale")
 		pulse.Parent = bannerLabel
@@ -291,8 +304,17 @@ end
 
 	`from` to miejsce, z którego ryba wylatuje (pozycja spławika). Gdy go
 	nie ma, startujemy z punktu przed graczem na poziomie wody.
+
+	`celebrated` — połów dostał baner na ekranie; tabliczka nad rybą
+	skraca się wtedy do samej ceny, żeby napisy się nie dublowały.
 ]]
-function CatchFx.play(caught: Types.CaughtFish, perfect: boolean, record: boolean, from: Vector3?)
+function CatchFx.play(
+	caught: Types.CaughtFish,
+	perfect: boolean,
+	record: boolean,
+	from: Vector3?,
+	celebrated: boolean?
+)
 	local definition = Fish.find(caught.fishId)
 	local character = player.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart")
@@ -351,7 +373,8 @@ function CatchFx.play(caught: Types.CaughtFish, perfect: boolean, record: boolea
 
 		-- Cel liczymy co klatkę: gracz może się obrócić albo odejść,
 		-- a ryba ma zawisnąć przed nim, nie tam, gdzie stał sekundę temu.
-		local hover = (root.CFrame * CFrame.new(0.4, 1.6, -5)).Position
+		-- Przy banerze ryba wisi niżej: góra ekranu należy wtedy do napisu.
+		local hover = (root.CFrame * CFrame.new(0.4, if celebrated then 0.4 else 1.6, -5)).Position
 		local elapsed = os.clock() - startedAt
 
 		if elapsed < FLIGHT_TIME then
@@ -365,10 +388,11 @@ function CatchFx.play(caught: Types.CaughtFish, perfect: boolean, record: boolea
 
 		if not arrived then
 			arrived = true
-			buildLabel(body, definition, caught, perfect, record)
+			buildLabel(body, definition, caught, perfect, record, celebrated == true)
 			sparkle(hover, accent, 16 + tier * 14)
+			-- Każdy połów dostaje garść konfetti; rzadkość dokłada resztę.
+			confetti(hover, 14 + tier * 30 + (if record then 50 else 0))
 			if special then
-				confetti(hover, 40 + tier * 30 + (if record then 50 else 0))
 				punchCamera(4 + tier * 1.5)
 			end
 		end

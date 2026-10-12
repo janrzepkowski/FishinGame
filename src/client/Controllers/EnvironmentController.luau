@@ -52,6 +52,9 @@ local NIGHT_CLOUD_DIM = 0.82
 local generator = Random.new()
 
 local started = false
+-- Prawda po pierwszej pełnej klatce: pora dnia, ekspozycja, mgła i chmury
+-- mają już docelowe wartości. Czeka na to ekran ładowania.
+local ready = false
 -- 0 = pogodnie, 1 = pełny deszcz. Dogania cel przez `WEATHER_FADE` sekund.
 local rain = 0
 local rainTarget = 0
@@ -189,6 +192,8 @@ local function update(delta: number)
 		local nearness = math.clamp(1 - fromShore / LAKE_HEARING, 0, 1)
 		lakeSound.Volume = Sfx.baseVolume("lake") * nearness
 	end
+
+	ready = true
 end
 
 local function readWeather()
@@ -205,6 +210,14 @@ function EnvironmentController.start()
 	baseExposure = Lighting.ExposureCompensation
 	local atmosphere = Lighting:FindFirstChildOfClass("Atmosphere")
 	baseDensity = if atmosphere then atmosphere.Density else 0.25
+
+	-- Porę dnia i ekspozycję ustawiamy OD RAZU, nie dopiero w pętli (która
+	-- rusza po dojechaniu chmur). Inaczej gra startuje z godziną zapisaną
+	-- w pliku miejsca i po chwili „przeskakuje" na właściwą — widać to jako
+	-- zapalające się albo gasnące światło.
+	local clock = currentClock()
+	Lighting.ClockTime = clock
+	Lighting.ExposureCompensation = baseExposure + Environment.darkness(clock) * NIGHT_EXPOSURE
 
 	buildRain()
 	rainLoop = Sfx.loop("rain")
@@ -226,6 +239,11 @@ function EnvironmentController.start()
 		end
 		RunService.RenderStepped:Connect(update)
 	end)
+end
+
+--[[ Czy oświetlenie ma już docelowe wartości (patrz `ready`). ]]
+function EnvironmentController.isReady(): boolean
+	return ready
 end
 
 return table.freeze(EnvironmentController)

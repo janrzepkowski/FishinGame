@@ -13,6 +13,9 @@
 
 	Pokazujemy go tylko przy dotyku BEZ klawiatury. Na tablecie z podpiętą
 	klawiaturą gracz i tak użyje klawiszy, a przycisk tylko zasłaniałby wodę.
+
+	Okrągłe przyciski torby i dziennika są za to na KAŻDYM urządzeniu —
+	na desktopie z plakietką klawisza (B, J).
 ]]
 
 local Theme = require(script.Parent.Theme)
@@ -21,7 +24,6 @@ local MobileControls = {}
 
 export type Phase = "Idle" | "Charging" | "Casting" | "Waiting" | "Biting" | "Fighting"
 
-local root: Frame? = nil
 local actionButton: TextButton? = nil
 local inventoryButton: TextButton? = nil
 local journalButton: TextButton? = nil
@@ -40,8 +42,8 @@ local PHASES: { [string]: { text: string, color: Color3 } } = {
 	-- żeby rzucić.
 	Charging = { text = "PUŚĆ!", color = Theme.COLOR.coin },
 	-- Rzut wysłany, serwer jeszcze nie odpowiedział — ułamek sekundy.
-	Casting = { text = "…", color = Theme.COLOR.panelHigh },
-	Waiting = { text = "czekaj…", color = Theme.COLOR.panelHigh },
+	Casting = { text = "…", color = Theme.COLOR.well },
+	Waiting = { text = "czekaj…", color = Theme.COLOR.well },
 	Biting = { text = "PODETNIJ!", color = Theme.COLOR.warning },
 	-- W walce przycisk zmienia znaczenie z „stuknij" na „trzymaj",
 	-- więc podpis musi to powiedzieć wprost.
@@ -57,9 +59,9 @@ function MobileControls.mount(parent: Instance)
 		Position = UDim2.new(1, -Theme.SPACE.lg, 1, -180),
 		Size = UDim2.fromOffset(104, 104),
 		BackgroundColor3 = Theme.COLOR.accent,
-		TextSize = Theme.TEXT.body,
+		TextSize = Theme.TEXT.lead,
 		Text = "ZARZUĆ",
-	}, Theme.stroke(Color3.fromRGB(255, 255, 255), 2))
+	})
 
 	local corner = action:FindFirstChildOfClass("UICorner")
 	if corner then
@@ -71,11 +73,11 @@ function MobileControls.mount(parent: Instance)
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -Theme.SPACE.lg, 1, -300),
 		Size = UDim2.fromOffset(62, 62),
-		BackgroundColor3 = Theme.COLOR.panelAlt,
+		BackgroundColor3 = Theme.COLOR.pink,
 		TextColor3 = Theme.COLOR.text,
-		TextSize = Theme.TEXT.lead,
-		Text = "▦",
-	}, Theme.stroke())
+		TextSize = Theme.TEXT.title,
+		Text = "🎒",
+	})
 
 	local inventoryCorner = inventory:FindFirstChildOfClass("UICorner")
 	if inventoryCorner then
@@ -87,11 +89,11 @@ function MobileControls.mount(parent: Instance)
 		AnchorPoint = Vector2.new(1, 1),
 		Position = UDim2.new(1, -Theme.SPACE.lg, 1, -374),
 		Size = UDim2.fromOffset(62, 62),
-		BackgroundColor3 = Theme.COLOR.panelAlt,
+		BackgroundColor3 = Theme.COLOR.purple,
 		TextColor3 = Theme.COLOR.text,
-		TextSize = Theme.TEXT.lead,
-		Text = "✦",
-	}, Theme.stroke())
+		TextSize = Theme.TEXT.title,
+		Text = "📖",
+	})
 
 	for _, button in { inventory, journal } do
 		local round = button:FindFirstChildOfClass("UICorner")
@@ -158,21 +160,51 @@ function MobileControls.mount(parent: Instance)
 	inventoryButton = inventory
 	journalButton = journal
 
-	root = Theme.create("Frame", {
+	Theme.create("Frame", {
 		Name = "MobileControls",
 		Size = UDim2.fromScale(1, 1),
 		BackgroundTransparency = 1,
 		-- Przezroczysta ramka na cały ekran nie może łapać kliknięć —
 		-- inaczej zablokowałaby obracanie kamery palcem.
 		Active = false,
-		Visible = false,
 		Parent = parent,
-	}, action, inventory, journal) :: Frame
+	}, action, inventory, journal)
 
+	-- Plakietki ze skrótem klawiszowym — tylko tam, gdzie jest klawiatura.
+	local inventoryKey = Theme.badge("B", Theme.COLOR.coin, {
+		Name = "Key",
+		Position = UDim2.fromOffset(-10, -6),
+		ZIndex = 5,
+		Parent = inventory,
+	})
+	local journalKey = Theme.badge("J", Theme.COLOR.coin, {
+		Name = "Key",
+		Position = UDim2.fromOffset(-10, -6),
+		ZIndex = 5,
+		Parent = journal,
+	})
+
+	-- Torba i dziennik są widoczne ZAWSZE: dziecko nie zgadnie, że pod
+	-- klawiszem B jest ekwipunek. Duży przycisk akcji zostaje tylko dla
+	-- dotyku — przy klawiaturze zasłaniałby wodę bez żadnego pożytku.
 	Theme.onLayout(function()
-		local panel = root
-		if panel then
-			panel.Visible = Theme.isTouchOnly()
+		local touch = Theme.isTouchOnly()
+		action.Visible = touch
+		inventoryKey.Visible = not touch
+		journalKey.Visible = not touch
+
+		if touch then
+			inventory.AnchorPoint = Vector2.new(1, 1)
+			inventory.Position = UDim2.new(1, -Theme.SPACE.lg, 1, -300)
+			journal.AnchorPoint = Vector2.new(1, 1)
+			journal.Position = UDim2.new(1, -Theme.SPACE.lg, 1, -374)
+		else
+			-- Prawa krawędź, w połowie wysokości: poza HUD-em, paskiem
+			-- łowienia i listą graczy Robloxa.
+			inventory.AnchorPoint = Vector2.new(1, 0.5)
+			inventory.Position = UDim2.new(1, -Theme.SPACE.lg, 0.5, -38)
+			journal.AnchorPoint = Vector2.new(1, 0.5)
+			journal.Position = UDim2.new(1, -Theme.SPACE.lg, 0.5, 38)
 		end
 	end)
 end
@@ -214,6 +246,9 @@ function MobileControls.setPhase(phase: Phase)
 	button.TextColor3 = if phase == "Waiting"
 		then Theme.COLOR.textMuted
 		else Theme.COLOR.textInverse
+	-- Zmiana podpisu to zmiana tego, co gracz ma zrobić — przycisk podskakuje,
+	-- żeby kciuk „poczuł" ją bez patrzenia.
+	Theme.bump(button, 0.12)
 end
 
 --[[ Czerwony przycisk w trakcie szarpnięcia: „puść". Ten sam sygnał,
@@ -231,20 +266,14 @@ end
 function MobileControls.setInventoryHighlighted(highlighted: boolean)
 	local button = inventoryButton
 	if button then
-		Theme.setButtonColor(
-			button,
-			if highlighted then Theme.COLOR.accent else Theme.COLOR.panelAlt
-		)
+		Theme.setButtonColor(button, if highlighted then Theme.COLOR.coin else Theme.COLOR.pink)
 	end
 end
 
 function MobileControls.setJournalHighlighted(highlighted: boolean)
 	local button = journalButton
 	if button then
-		Theme.setButtonColor(
-			button,
-			if highlighted then Theme.COLOR.accent else Theme.COLOR.panelAlt
-		)
+		Theme.setButtonColor(button, if highlighted then Theme.COLOR.coin else Theme.COLOR.purple)
 	end
 end
 

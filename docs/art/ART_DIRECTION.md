@@ -1,116 +1,85 @@
 # Kierunek artystyczny
 
-Jedno zdanie: **bajkowe jezioro o złotej godzinie** — proste bryły, soczyste
-kolory, ciepłe światło. Punktem odniesienia są stoiska na placu: wszystko inne
-ma wyglądać, jakby stało w tym samym świecie co one.
+Jedno zdanie: **cukierkowe jezioro dla dzieci** — wszystko zaokrąglone,
+pastelowe, z gładkiego plastiku, a interfejs jak naklejki z grubym konturem.
 
 Ten dokument rozstrzyga spory o wygląd. Gdy coś na mapie „nie pasuje", odpowiedź
 ma być tutaj, a nie w guście osoby, która akurat patrzy.
 
+> Wcześniejszy kierunek („bajkowe jezioro o złotej godzinie", drewno i łupek,
+> paczka low-poly) został zastąpiony w październiku 2026. Stare wartości są
+> w historii gita.
+
 ## Styl
 
-- **Stylizowany, nie realistyczny.** Kształty czytelne z daleka, bez drobnego
-  detalu. Drzewo to pień i dwie–trzy bryły korony, nie tysiąc liści.
-- **Kolor niesie nastrój, materiał tylko fakturę.** Najpierw dobieramy barwę
-  z palety, dopiero potem materiał.
-- **Woda jest turkusowa i zaprasza**, ale ma wyglądać jak jezioro, nie basen:
-  mało odbić, widoczna głębia, ciemniejsza nad głębokimi półkami.
+- **Zaokrąglone, nie kanciaste.** Podstawowe bryły to walec, kula i elipsoida
+  (`Build.upright`, `Build.sphere`, `Build.ellipsoid`). Prostopadłościan zostaje
+  tam, gdzie gracz po czymś chodzi — i dostaje okrągłe końce (`Build.pill`).
+- **Jeden materiał: `SmoothPlastic`.** Świat ma wyglądać jak zabawka. Bez
+  tekstur drewna, kamienia i tkaniny, bez PBR.
+- **Kolor z palety `Build.COLOR`** (świat) i `Theme.COLOR` (interfejs).
+  Barwa spoza palety wymaga uzasadnienia w PR-ze.
+- **Punkty orientacyjne zamiast napisów.** Ryba na dachu skupu, spławik na
+  dachu sklepu, tęczowy pomost: dziecko trafia tam, zanim przeczyta szyld.
 - **Środek kadru należy do rozgrywki** (zasada 8 z `CLAUDE.md`). Dekoracje nie
   stają między graczem a spławikiem.
 
-## Paleta
+## Świat
 
-Sześć kolorów bazowych. Cztery pochodzą wprost ze stoisk (`Market.luau`),
-woda to `Theme.COLOR.water` — UI i świat mówią o wodzie tym samym kolorem.
-
-| Rola | Hex | RGB | Gdzie |
-|---|---|---|---|
-| Trawa | `#62B04A` | 98, 176, 74 | teren, korony drzew (± odcień) |
-| Woda | `#2FA8C8` | 47, 168, 200 | jezioro, akcenty wody w UI |
-| Zieleń morska | `#56A480` | 86, 164, 128 | skup ryb, markizy, trzciny |
-| Bursztyn | `#CE984A` | 206, 152, 74 | sklep wędkarski, światło latarni, monety |
-| Drewno | `#9A724A` | 154, 114, 74 | pomost, belki, pnie |
-| Łupek | `#4E5460` | 78, 84, 96 | dachy, kamienie, cienie |
-
-Neutralne pochodne, poza limitem sześciu: piasek `#D9C79A` i kremowa biel
-markiz `#F0EEE8`.
-
-Zasady użycia:
-
-- Nowy obiekt bierze kolor z tabeli albo jego odcień (jaśniej/ciemniej do
-  ok. 20%). Barwa spoza palety wymaga uzasadnienia w PR-ze.
-- Odcienie zieleni w roślinności: najwyżej trzy naraz, wszystkie cieplejsze
-  od zieleni morskiej — ta jest zarezerwowana dla rzeczy zbudowanych ręką
-  człowieka.
-- Czerwień i jaskrawy pomarańcz zostają dla spławika i sygnałów rozgrywki.
-  Nic w krajobrazie nie konkuruje z nimi o uwagę.
-
-## Nastrój i światło
-
-**Złota godzina jest punktem odniesienia**, ale pora się zmienia: doba
-w grze trwa 12 minut, a pogoda przechodzi między słońcem a deszczem.
-Wartości poniżej stroiliśmy przy godzinie 17,5 i to przy niej oceniamy
-kolory; nocą obraz jest rozjaśniany, żeby dało się łowić, a w deszczu
-chmury są stalowe, nie białe. Do zrzutów porównawczych godzinę zamraża
-się w Studio atrybutem `DevClockTime` na Workspace.
-
-Wartości wdrożone w fazie F2, dobrane na zrzutach z kamer z `cameras.json`:
-
-| Właściwość | Przed | Teraz |
+| Element | Jak wygląda | Gdzie |
 |---|---|---|
-| `Lighting.ClockTime` | 15,5 | 17,5 |
-| `Lighting.Brightness` | 2,8 | 2,4 |
-| `Lighting.ShadowSoftness` | 0,35 | 0,2 |
-| `ColorCorrection.TintColor` | 255, 252, 246 | 255, 236, 210 |
-| `ColorCorrection.Saturation` | 0,14 | 0,12 |
-| `Atmosphere.Haze` | 1,1 | 0,6 |
-| `Atmosphere.Density` | 0,32 | 0,25 |
-| `Clouds` | brak | Cover 0,55, Density 0,6 |
-| `SunRaysEffect` | brak | Intensity 0,08, Spread 0,6 |
-| `Terrain.WaterColor` | 16, 94, 134 | 30, 136, 160 |
-| `Terrain.WaterReflectance` | 0,65 | 0,35 |
-| `Terrain.WaterTransparency` | 0,3 | 0,35 |
-| kolor materiału `Grass` w terenie | domyślny (oliwkowy) | 104, 150, 72 |
+| Plac | okrągły krążek z pastelowymi „guzikami", latarnie-lizaki | `World/Market` |
+| Stoiska | „babeczki": podest, laski cukrowe, kopuła z lukrem i posypką | `World/Market` |
+| Pomost | deski w sześciu pastelach, okrągłe czoła, okrągła platforma na końcu | `World/Dock` |
+| Drzewa | pień-walec i korona z kul; zaokrąglone choinki; wielkie lizaki | `World/Scenery` |
+| Kamienie | „pianki" — spłaszczone elipsoidy | `World/Scenery` |
+| Horyzont | kopuły wzgórz: bliżej zielone, dalej pastelowe | `World/Scenery` |
 
-Trzy rzeczy wyszły w praniu i warto je znać przed kolejnym strojeniem:
+`assets/NaturePack.rbxm` nie jest już używany przez `Scenery` — kanciaste,
+ciemne siatki nie dawały się pogodzić ze stylem.
 
-- **Pora dnia ma wąskie okno.** Przy szerokości geograficznej 52° o 17,3
-  światło jest jeszcze dzienne, a o 17,8 jest już zmierzch. Złota godzina
-  to 17,5 i kilka minut w każdą stronę.
-- **Kolor wody i trawy w silniku nie równa się kolorowi z palety.** Silnik
-  rozjaśnia wodę światłem, a tekstura terenu podbija nasycenie trawy.
-  Paleta opisuje to, co gracz WIDZI; wartości wpisane w kod są ciemniejsze
-  i bardziej stonowane.
-- **Nasycenie obniżone, nie podniesione.** Przy +0,20 trawa i woda razem
-  robiły się neonowe.
+## Światło
+
+Wartości w `default.project.json` (oświetlenie) i `World/Ground` (woda, niebo),
+dobrane na zrzutach o 13:00 (`DevClockTime` na Workspace zamraża godzinę).
+
+| Właściwość | Wartość |
+|---|---|
+| `Lighting.Brightness` | 1,6 |
+| `Lighting.ExposureCompensation` | −0,45 |
+| `Lighting.Ambient` / `OutdoorAmbient` | 0,30 0,30 0,40 / 0,44 0,46 0,54 |
+| `Bloom` | Intensity 0,2, Threshold 2,2 |
+| `ColorCorrection.Saturation` | 0,20 |
+| `Atmosphere` | Density 0,14, Haze 0,3 |
+| `Terrain.WaterColor` | 36, 150, 196; Reflectance 0,12; Transparency 0,3 |
+| trawa / piasek terenu | 118, 206, 104 / 255, 226, 170 |
+
+**Pastele przepalają się bardzo łatwo.** Przy jasności 2,6 i dodatniej
+ekspozycji plac był białą plamą bez kształtu. Dlatego ekspozycja jest ujemna,
+bloom prawie wyłączony, a „biel" palety to 226, 230, 242, nie 255.
 
 Fale zostają drobne (`WaterWaveSize` 0,15) — to decyzja rozgrywki, nie
 estetyki: przy większych spławik skacze i nie da się odczytać brania.
 
-## Materiały
+## Interfejs
 
-- **Konstrukcje stawiane kodem:** `WoodPlanks` na deski i ściany, `Wood` na
-  belki i pnie, `Slate` na dachy i kamień, `Fabric` na markizy, `Cobblestone`
-  na bruk. `SmoothPlastic` tylko jako domyślny dla brył bez faktury.
-- **Roślinność:** `LeafyGrass` albo `Grass`. Bez `Neon` i bez połysku.
-- **`Neon` wyłącznie dla źródeł światła** (klosze latarni) i sygnałów
-  rozgrywki (spławik). Świecący element, który nic nie znaczy, uczy gracza
-  ignorować te, które znaczą.
-- **Bez tekstur fotograficznych i bez PBR** (`SurfaceAppearance`). Gryzą się
-  ze stylem i kosztują pamięć na telefonach.
-- **Cienie:** duże bryły rzucają cień, drobnica (trzciny, kamyki, detale lad)
-  ma `CastShadow = false`.
-
-## Budulec
-
-Mieszany. **Konstrukcje** (stoiska, pomost, plac) dalej z kodu przez `Build`.
-**Natura i rekwizyty** (drzewa, trzciny, kamienie) z **jednej** stylizowanej
-paczki low-poly z Creator Store — jednej, żeby wszystko miało tę samą rękę.
-
-Zanim asset trafi do gry:
-
-1. `inspect_instance` na całej paczce; każdy `Script`, `LocalScript`
-   i `ModuleScript` zostaje usunięty, o ile nie wiemy dokładnie, co robi.
-2. Kolory przemalowane na paletę z tego dokumentu.
-3. Model trafia do `assets/` jako `.rbxm` i jest stawiany kodem — nie
-   wklejamy niczego ręcznie do Workspace, bo Rojo tego nie widzi.
+- Panele nasycone (niebieskie), **gruby granatowy kontur** na wszystkim,
+  biały tekst z obrysem. Żadnych szarości.
+- Każde okno ma belkę tytułu we własnym kolorze (torba różowa, sklep
+  pomarańczowy, dziennik fioletowy) i czerwony przycisk zamknięcia w rogu
+  (`Theme.window`).
+- **Czcionka: Nunito** (ExtraBold / Heavy). FredokaOne i LuckiestGuy nie mają
+  w Robloxie polskich znaków ę, ą, ś, ć, ł, ż, ź, ń — silnik podmienia je
+  inną czcionką i wyraz wychodzi w dwóch krojach.
+- Ryby w ekwipunku i bestiariuszu to **siatka kafelków** w kolorze rzadkości,
+  z modelem 3D gatunku (`UI/FishIcon` + `shared/Util/FishModel`).
+- **Nagrody (`UI/Celebration`)**: baner z promieniami, konfetti, migające
+  światła przy rekordzie, monety lecące do licznika po sprzedaży. To język
+  nagrody z automatów, ale **bez hazardu**: nie ma losowania, zakładu ani
+  niczego do kupienia. Pospolita ryba nie dostaje banera.
+- `BillboardGui` z `AlwaysOnTop` nie pojawia się na zrzutach z `screen_capture`
+  — podpowiedź przy stoisku (`UI/PromptBubble`) sprawdza się w grze albo
+  odczytem pozycji, nie zrzutem.
+- **Ekran ładowania (`UI/LoadingScreen`)** zasłania grę, dopóki mapa nie
+  dojedzie strumieniowo, a pora dnia i światła się nie ustawią. Pasek rośnie
+  płynnie (najwyżej 40% na sekundę) i kurtyna podnosi się dopiero przy 100%.

@@ -41,8 +41,10 @@ local Types = require(Shared.Types)
 local Bobber = require(script.Parent.Parent.Effects.Bobber)
 local CastMeter = require(script.Parent.Parent.UI.CastMeter)
 local CatchFx = require(script.Parent.Parent.Effects.CatchFx)
+local Celebration = require(script.Parent.Parent.UI.Celebration)
 local Hotbar = require(script.Parent.Parent.UI.Hotbar)
 local Hud = require(script.Parent.Parent.UI.Hud)
+local ProfileCache = require(script.Parent.Parent.ProfileCache)
 
 local ROD_ATTRIBUTE = "RodId"
 
@@ -66,6 +68,13 @@ local castSerial = 0
 local CAST_CONFIRM_TIMEOUT = 1
 local phaseListeners: { (Phase) -> () } = {}
 local reeling = false
+-- Gatunki, które gracz miał w bestiariuszu PRZED bieżącym połowem. Profil
+-- i wynik zarzucenia przychodzą osobnymi Remote'ami w nieustalonej
+-- kolejności, więc nowy wpis trafia tu z opóźnieniem — inaczej świeżo
+-- złowiony gatunek nigdy nie zostałby rozpoznany jako nowy.
+local knownSpecies: { [string]: boolean } = {}
+local speciesLoaded = false
+local SPECIES_SETTLE = 2
 
 local function setPhase(next: Phase)
 	phase = next
@@ -323,6 +332,21 @@ local function watchCharacter(character: Model)
 end
 
 function FishingController.start()
+	ProfileCache.onChanged(function(profile: Types.Profile)
+		local function remember()
+			for fishId in profile.records do
+				knownSpecies[fishId] = true
+			end
+		end
+
+		if speciesLoaded then
+			task.delay(SPECIES_SETTLE, remember)
+		else
+			speciesLoaded = true
+			remember()
+		end
+	end)
+
 	if player.Character then
 		watchCharacter(player.Character)
 	end
@@ -437,7 +461,16 @@ function FishingController.start()
 		if result.outcome == "Caught" then
 			-- Ryba wylatuje ze spławika, zanim ten zostanie zwinięty.
 			if result.fish then
-				CatchFx.play(result.fish, result.perfect, result.record, Bobber.position())
+				local newSpecies = speciesLoaded and not knownSpecies[result.fish.fishId]
+				local celebrated =
+					Celebration.catch(result.fish, result.perfect, result.record, newSpecies)
+				CatchFx.play(
+					result.fish,
+					result.perfect,
+					result.record,
+					Bobber.position(),
+					celebrated
+				)
 			end
 			Bobber.splash()
 		end

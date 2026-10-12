@@ -35,8 +35,8 @@ local Theme = require(script.Parent.Theme)
 
 local CastMeter = {}
 
-local DESKTOP_SIZE = Vector2.new(420, 150)
-local PHONE_SIZE = Vector2.new(330, 136)
+local DESKTOP_SIZE = Vector2.new(430, 158)
+local PHONE_SIZE = Vector2.new(330, 150)
 
 -- Jak szybko paski doganiają stan z serwera. 14/s domyka różnicę
 -- w ~0,07 s, czyli szybciej, niż trwa jeden tick serwera.
@@ -104,69 +104,78 @@ end
 function CastMeter.mount(parent: Instance)
 	local bar = Theme.create("Frame", {
 		Name = "Accent",
-		Size = UDim2.new(0, 4, 1, -20),
-		Position = UDim2.fromOffset(0, 10),
+		Size = UDim2.new(0, 8, 1, -16),
+		Position = UDim2.fromOffset(0, 8),
 		BackgroundColor3 = Theme.COLOR.accent,
 		BorderSizePixel = 0,
-	}, Theme.corner(Theme.RADIUS.sm)) :: Frame
+	}, Theme.corner(Theme.RADIUS.sm), Theme.stroke(Theme.COLOR.outline, 2)) :: Frame
 
 	local title = Theme.label({
-		Size = UDim2.new(1, 0, 0, 26),
+		Size = UDim2.new(1, 0, 0, 28),
 		LayoutOrder = 1,
-		Font = Theme.FONT_BLACK,
+		Font = Theme.FONT_DISPLAY,
 		TextSize = Theme.TEXT.title,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Text = "",
 	})
+	Theme.outline(title, Theme.COLOR.outline, 2.5)
 
 	local hint = Theme.label({
-		Size = UDim2.new(1, 0, 0, 18),
+		-- Dwie linijki: podpowiedzi po polsku bywają długie, a ucięte
+		-- w połowie zdania nie mówią graczowi, co zrobił źle.
+		Size = UDim2.new(1, 0, 0, 32),
 		LayoutOrder = 2,
 		TextSize = Theme.TEXT.small,
 		TextColor3 = Theme.COLOR.textMuted,
 		TextXAlignment = Enum.TextXAlignment.Center,
+		TextWrapped = true,
 		Text = "",
 	})
 
 	local track, fill = Theme.progress({
 		Name = "Progress",
-		Size = UDim2.new(1, 0, 0, 16),
+		Size = UDim2.new(1, -4, 0, 22),
 		LayoutOrder = 3,
 	}, Theme.COLOR.accent)
 
 	fill.Size = UDim2.fromScale(1, 1)
 
-	local zone = Theme.create("Frame", {
-		Name = "PerfectZone",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromScale(GameConfig.PERFECT_REEL_FRACTION, 1),
-		BackgroundColor3 = Theme.COLOR.success,
-		BackgroundTransparency = 0.5,
-		BorderSizePixel = 0,
-		ZIndex = 3,
-		Parent = track,
-	}, Theme.corner(Theme.RADIUS.sm), Theme.stroke(Theme.COLOR.success, 1)) :: Frame
+	local zone = Theme.create(
+		"Frame",
+		{
+			Name = "PerfectZone",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.fromScale(1, 0),
+			Size = UDim2.fromScale(GameConfig.PERFECT_REEL_FRACTION, 1),
+			BackgroundColor3 = Theme.COLOR.success,
+			BackgroundTransparency = 0.5,
+			BorderSizePixel = 0,
+			ZIndex = 3,
+			Parent = track,
+		},
+		Theme.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+		Theme.stroke(Theme.COLOR.white, 2)
+	) :: Frame
 
 	-- Pasek napięcia z podpisem. Podpis jest konieczny: dwa paski jeden pod
 	-- drugim bez etykiet to zagadka, a gracz ma na nią pół sekundy.
 	local tensionTrack, tensionBar = Theme.progress({
 		Name = "TensionTrack",
-		Size = UDim2.new(1, -62, 0, 10),
-		Position = UDim2.fromOffset(62, 2),
+		Size = UDim2.new(1, -66, 0, 14),
+		Position = UDim2.fromOffset(62, 1),
 	}, Theme.COLOR.success)
 
 	local tensionCaption = Theme.label({
-		Size = UDim2.fromOffset(58, 14),
+		Size = UDim2.fromOffset(58, 16),
 		Font = Theme.FONT_BOLD,
-		TextSize = Theme.TEXT.micro,
+		TextSize = Theme.TEXT.small,
 		TextColor3 = Theme.COLOR.textMuted,
 		Text = "ŻYŁKA",
 	})
 
 	local tension = Theme.create("Frame", {
 		Name = "Tension",
-		Size = UDim2.new(1, 0, 0, 14),
+		Size = UDim2.new(1, 0, 0, 16),
 		LayoutOrder = 4,
 		BackgroundTransparency = 1,
 		Visible = false,
@@ -183,10 +192,10 @@ function CastMeter.mount(parent: Instance)
 
 	local content = Theme.create("Frame", {
 		Name = "Content",
-		Size = UDim2.new(1, -12, 1, 0),
-		Position = UDim2.fromOffset(12, 0),
+		Size = UDim2.new(1, -18, 1, 0),
+		Position = UDim2.fromOffset(18, 0),
 		BackgroundTransparency = 1,
-	}, Theme.list(Theme.SPACE.xs), title, hint, track, tension) :: Frame
+	}, Theme.list(Theme.SPACE.sm), title, hint, track, tension) :: Frame
 
 	-- Kotwica w LEWYM DOLNYM rogu. Wcześniej pasek stał na dole wyśrodkowany
 	-- i przy łowieniu zasłaniał dokładnie to, na co gracz patrzy — wodę

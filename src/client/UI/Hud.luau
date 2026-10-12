@@ -30,14 +30,15 @@ local LakeConfig = require(Shared.Config.Lake)
 local Rods = require(Shared.Config.Rods)
 local Types = require(Shared.Types)
 
+local Celebration = require(script.Parent.Celebration)
 local Theme = require(script.Parent.Theme)
 
 local Hud = {}
 
 local PILL_HEIGHT = 34
-local ICON = 40
-local WIDTH = 200
-local WIDTH_PHONE = 164
+local ICON = 42
+local WIDTH = 210
+local WIDTH_PHONE = 168
 
 local root: Frame? = nil
 local coinsPill: Frame? = nil
@@ -109,7 +110,7 @@ function Hud.mount(parent: Instance)
 	local caughtRow, caught = pill(2, "🐟", Theme.COLOR.accent, PILL_HEIGHT)
 
 	-- Torba: pigułka-pasek. Tło ciemne, a kolor wypełnia się wraz z zajętością.
-	local bagRow, bag = pill(3, "🎒", Theme.COLOR.panelHigh, PILL_HEIGHT)
+	local bagRow, bag = pill(3, "🎒", Theme.COLOR.well, PILL_HEIGHT)
 	local gradient = bagRow:FindFirstChildOfClass("UIGradient")
 	if gradient then
 		gradient:Destroy()
@@ -210,6 +211,9 @@ function Hud.update(profile: Types.Profile)
 		-- Pigułka podskakuje przy KAŻDYM przyroście. Sprzedaż połowu to
 		-- najważniejsze zdarzenie w pętli gry i ma być widoczna bez
 		-- patrzenia na liczbę.
+		-- Deszcz monet lecących do licznika — sprzedaż ma być świętem.
+		Celebration.coins(profile.coins - targetCoins, coinsIcon)
+
 		local coinPill = coinsPill
 		if coinPill then
 			Theme.bump(coinPill, 0.22)

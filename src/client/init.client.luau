@@ -14,6 +14,9 @@
 	  5. kontrolery  — podpinają wejście gracza i efekty.
 	  6. RequestProfile — prosimy serwer o dane, gdy już jest czym je wypełnić.
 
+	Całość dzieje się za zasłoną `LoadingScreen`, która znika, gdy świat
+	i profil są gotowe.
+
 	Punkt 6 musi być OSTATNI. Serwer robi pierwszy `push` w `PlayerAdded`,
 	co może się zdarzyć przed podłączeniem handlera przez klienta — jawne
 	żądanie usuwa ten wyścig, zamiast liczyć na kolejkowanie Remote'ów.
@@ -37,17 +40,23 @@ local TutorialController = require(script.Controllers.TutorialController)
 local Underwater = require(script.Effects.Underwater)
 
 local CastMeter = require(script.UI.CastMeter)
+local Celebration = require(script.UI.Celebration)
 local Hotbar = require(script.UI.Hotbar)
 local Hud = require(script.UI.Hud)
 local InventoryPanel = require(script.UI.InventoryPanel)
 local JournalPanel = require(script.UI.JournalPanel)
+local LoadingScreen = require(script.UI.LoadingScreen)
 local MobileControls = require(script.UI.MobileControls)
+local PromptBubble = require(script.UI.PromptBubble)
 local ShopPanel = require(script.UI.ShopPanel)
 local Theme = require(script.UI.Theme)
 local Toast = require(script.UI.Toast)
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+
+-- Zasłona idzie PIERWSZA: wszystko poniżej buduje się już za nią.
+LoadingScreen.show()
 
 local screen = Instance.new("ScreenGui")
 screen.Name = "FishinGameUI"
@@ -69,6 +78,8 @@ ShopPanel.mount(root)
 JournalPanel.mount(root)
 Toast.mount(root)
 MobileControls.mount(root)
+-- Ostatnia: warstwa nagród rysuje się nad całą resztą interfejsu.
+Celebration.mount(root)
 
 ProfileCache.onChanged(function(profile: Types.Profile)
 	Hud.update(profile)
@@ -118,9 +129,13 @@ FishingController.start()
 -- Po FishingController: czyta z niego fazę lokalnego gracza.
 AnglerController.start()
 ShopController.start()
+PromptBubble.start()
 NpcController.start()
 LakeLife.start()
 EnvironmentController.start()
 TutorialController.start()
 
 Net.RequestProfile:FireServer()
+
+-- Odsłaniamy grę dopiero, gdy mapa, światło, postać i profil są na miejscu.
+task.spawn(LoadingScreen.finishWhenReady)

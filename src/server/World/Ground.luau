@@ -187,13 +187,13 @@ local function styleWater()
 	-- Odbicie pośrodku, i to z obu stron sprawdzone. Przy 0.65 tafla brała
 	-- kolor wprost z nieba i jezioro świeciło cyjanem jak basen. Przy 0.25
 	-- znikała faktura fal i woda robiła się płaską plamą farby.
-	terrain.WaterReflectance = 0.35
+	terrain.WaterReflectance = 0.12
 	-- Nie wyżej: przy 0.55 prześwitywało piaszczyste dno i woda czytała
 	-- się jako muł.
-	terrain.WaterTransparency = 0.35
-	-- Ciemniejszy niż turkus z palety (docs/art/ART_DIRECTION.md): silnik
-	-- rozjaśnia wodę światłem, więc kolor z palety wprost dawał neon.
-	terrain.WaterColor = Color3.fromRGB(30, 136, 160)
+	terrain.WaterTransparency = 0.3
+	-- Pastelowy turkus „z kreskówki". Ciemniejszy niż kolor z palety
+	-- (docs/art/ART_DIRECTION.md), bo silnik rozjaśnia wodę światłem.
+	terrain.WaterColor = Color3.fromRGB(36, 150, 196)
 end
 
 --[[ Domyślna trawa terenu jest oliwkowa i gryzie się z nasyconymi stoiskami.
@@ -201,7 +201,11 @@ end
      (docs/art/ART_DIRECTION.md), bo tekstura terenu i korekcja kolorów
      podbijają nasycenie — hex z palety wprost wychodził jaskrawy. ]]
 local function styleLand()
-	Workspace.Terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(104, 150, 72))
+	local terrain = Workspace.Terrain
+	-- Cukierkowa, jasna zieleń i waniliowy piasek. Wartości są spokojniejsze
+	-- niż paleta, bo tekstura terenu i korekcja kolorów dokładają nasycenie.
+	terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(118, 206, 104))
+	terrain:SetMaterialColor(Enum.Material.Sand, Color3.fromRGB(255, 226, 170))
 end
 
 --[[
@@ -214,8 +218,10 @@ local function styleSky()
 	local terrain = Workspace.Terrain
 	local existing = terrain:FindFirstChildOfClass("Clouds")
 	local clouds = existing or Instance.new("Clouds")
-	clouds.Cover = 0.55
-	clouds.Density = 0.6
+	-- Rzadkie, puchate obłoki: niebo ma być w większości błękitne.
+	clouds.Cover = 0.5
+	clouds.Density = 0.32
+	clouds.Color = Color3.fromRGB(255, 255, 255)
 	clouds.Parent = terrain
 end
 

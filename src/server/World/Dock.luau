@@ -41,9 +41,17 @@ local STEP_DEPTH = 1.6
 -- Ile bloku stopnia siedzi pod ziemią, żeby pod schodami nie było szpary.
 local STEP_BURIED = 0.6
 
-local WOOD_LIGHT = Color3.fromRGB(176, 134, 88)
-local WOOD_DARK = Color3.fromRGB(148, 110, 70)
-local WOOD_POST = Color3.fromRGB(104, 78, 52)
+local C = Build.COLOR
+
+-- Najmniejsza różnica wysokości między dwiema nakładającymi się płaskimi
+-- powierzchniami. Mniejsza daje migotanie (z-fighting).
+local LIP = 0.08
+
+-- Deski w kolejnych pastelach: pomost czyta się z daleka jak tęczowa
+-- wstążka prowadząca na głęboką wodę.
+local PLANKS = { C.peach, C.vanilla, C.mint, C.sky, C.lilac, C.pink }
+local RAIL = C.white
+local POST_COLORS = { C.rose, C.sky, C.lemon, C.mint, C.grape, C.orange }
 
 Dock.END_Z = START_Z - LENGTH
 
@@ -70,29 +78,34 @@ local function buildSteps(parent: Instance)
 			Name = `Step{index}`,
 			Size = Vector3.new(WIDTH, height, STEP_DEPTH),
 			Position = Vector3.new(0, top - height / 2, centerZ),
-			Color = if index % 2 == 0 then WOOD_LIGHT else WOOD_DARK,
-			Material = Enum.Material.WoodPlanks,
+			Color = PLANKS[index],
 			CanCollide = true,
+		})
+		-- Zaokrąglony nosek stopnia: walec wzdłuż krawędzi.
+		Build.cylinder(parent, {
+			Name = "StepNose",
+			Size = Vector3.new(WIDTH, 0.5, 0.5),
+			Position = Vector3.new(0, top - 0.25, centerZ + STEP_DEPTH / 2),
+			Color = PLANKS[index],
 		})
 	end
 
-	-- Policzki po bokach zamykają schody wizualnie i zasłaniają boki bloków.
+	-- Kule po bokach zamykają schody wizualnie i zasłaniają boki bloków.
 	local run = STEP_COUNT * STEP_DEPTH
 	for _, side in { -1, 1 } do
-		Build.wedge(parent, {
-			Name = "StepCheek",
-			Size = Vector3.new(0.4, DECK_TOP + STEP_BURIED, run),
-			-- Klin w Robloxie opada w stronę -Z własnego układu, a schody
-			-- opadają w stronę +Z świata — stąd obrót o pół obrotu.
-			CFrame = CFrame.new(
-				side * (WIDTH / 2 + 0.2),
-				(DECK_TOP - STEP_BURIED) / 2,
-				START_Z + run / 2
-			) * CFrame.Angles(0, math.pi, 0),
-			Color = WOOD_POST,
-			Material = Enum.Material.Wood,
-			CanCollide = true,
-		})
+		for index = 0, 2 do
+			Build.sphere(parent, {
+				Name = "StepBall",
+				Size = Vector3.one * (2.6 - index * 0.5),
+				Position = Vector3.new(
+					side * (WIDTH / 2 + 0.6),
+					0.5 - index * 0.1,
+					START_Z + run * (0.15 + index * 0.4)
+				),
+				Color = POST_COLORS[index + (if side > 0 then 1 else 4)],
+				CanCollide = true,
+			})
+		end
 	end
 end
 
@@ -101,24 +114,57 @@ local function buildDeck(parent: Instance): number
 
 	for index = 1, plankCount do
 		local centerZ = START_Z - (index - 0.5) * PLANK_LENGTH
+		local color = PLANKS[(index - 1) % #PLANKS + 1]
 
 		Build.block(parent, {
 			Name = `Plank{index}`,
-			Size = Vector3.new(WIDTH, PLANK_THICKNESS, PLANK_LENGTH - 0.12),
+			-- Deski stykają się bez szpar: szpara w pokładzie to miejsce,
+			-- w którym grzęźnie stopa postaci.
+			Size = Vector3.new(WIDTH, PLANK_THICKNESS, PLANK_LENGTH),
 			Position = Vector3.new(0, DECK_Y, centerZ),
-			-- Naprzemienne odcienie: bez nich pomost jest jedną plamą
-			-- i z daleka nie widać, gdzie się kończy.
-			Color = if index % 2 == 0 then WOOD_LIGHT else WOOD_DARK,
-			Material = Enum.Material.WoodPlanks,
+			Color = color,
 			CanCollide = true,
 		})
+
+		-- Zaokrąglone czoła deski po obu bokach pomostu.
+		for _, side in { -1, 1 } do
+			Build.cylinder(parent, {
+				Name = "PlankEnd",
+				Size = Vector3.new(PLANK_LENGTH, PLANK_THICKNESS, PLANK_THICKNESS),
+				CFrame = CFrame.new(side * WIDTH / 2, DECK_Y, centerZ)
+					* CFrame.Angles(0, math.rad(90), 0),
+				Color = color,
+			})
+		end
 	end
+
+	-- Okrągła platforma na końcu: miejsce, z którego rzuca się najdalej.
+	--
+	-- Platforma jest o `LIP` WYŻSZA od desek, na które nachodzi. Przy równej
+	-- wysokości jej wierzch i wierzch desek leżały w jednej płaszczyźnie
+	-- i migotały, walcząc o piksele (z-fighting). Próg 0,08 studa postać
+	-- przechodzi bez podskoku.
+	local platformTop = DECK_TOP + LIP
+	Build.upright(
+		parent,
+		CFrame.new(0, platformTop - (PLANK_THICKNESS + LIP) / 2, Dock.END_Z + 1),
+		WIDTH + 6,
+		PLANK_THICKNESS + LIP,
+		{ Name = "EndPlatform", Color = C.cream, CanCollide = true }
+	)
+	Build.upright(
+		parent,
+		CFrame.new(0, platformTop + LIP / 2, Dock.END_Z + 1),
+		WIDTH - 1,
+		LIP,
+		{ Name = "EndPlatformDot", Color = C.pink, CastShadow = false }
+	)
 
 	return plankCount
 end
 
 local function buildRailings(parent: Instance)
-	local railY = DECK_TOP + 1.15
+	local railY = DECK_TOP + 1.2
 	local postSpacing = 8
 	local postCount = math.floor(LENGTH / postSpacing)
 
@@ -126,29 +172,32 @@ local function buildRailings(parent: Instance)
 		local x = side * (WIDTH / 2 - 0.3)
 
 		-- Barierka MUSI kolidować: bez tego gracz cofający się przed podcięciem
-		-- wpada do wody i traci zarzucenie.
+		-- wpada do wody i traci zarzucenie. Kolizję niesie niewidoczny blok,
+		-- a widać okrągłą linę — walec jako bryła kolizji łapie postać gorzej.
 		Build.block(parent, {
-			Name = "Rail",
-			Size = Vector3.new(0.25, 0.25, LENGTH),
-			Position = Vector3.new(x, railY, START_Z - LENGTH / 2),
-			Color = WOOD_POST,
-			Material = Enum.Material.Wood,
+			Name = "RailCollider",
+			Size = Vector3.new(0.4, 1.6, LENGTH),
+			Position = Vector3.new(x, DECK_TOP + 0.8, START_Z - LENGTH / 2),
+			Transparency = 1,
 			CanCollide = true,
+		})
+		Build.cylinder(parent, {
+			Name = "Rail",
+			Size = Vector3.new(LENGTH, 0.4, 0.4),
+			CFrame = CFrame.new(x, railY, START_Z - LENGTH / 2) * CFrame.Angles(0, math.rad(90), 0),
+			Color = RAIL,
 		})
 
 		for index = 0, postCount do
-			Build.block(parent, {
-				Name = "RailPost",
-				Size = Vector3.new(0.35, 1.3, 0.35),
-				Position = Vector3.new(
-					x,
-					DECK_TOP + 0.65,
-					START_Z - math.min(index * postSpacing, LENGTH)
-				),
-				Color = WOOD_POST,
-				Material = Enum.Material.Wood,
-				CanCollide = true,
-			})
+			local z = START_Z - math.min(index * postSpacing, LENGTH)
+			Build.candyCane(
+				parent,
+				CFrame.new(x, DECK_TOP, z),
+				0.5,
+				1.5,
+				C.white,
+				POST_COLORS[index % #POST_COLORS + 1]
+			)
 		end
 	end
 end
@@ -164,42 +213,53 @@ local function buildPiles(parent: Instance)
 	for _, side in { -1, 1 } do
 		for index = 0, count do
 			local z = START_Z - math.min(index * spacing + 4, LENGTH - 2)
-			Build.block(parent, {
-				Name = "Pile",
-				Size = Vector3.new(0.9, pileLength, 0.9),
-				Position = Vector3.new(side * (WIDTH / 2 - 0.7), DECK_TOP - pileLength / 2 + 1, z),
-				Color = WOOD_POST,
-				Material = Enum.Material.Wood,
+			local x = side * (WIDTH / 2 - 0.7)
+			Build.upright(
+				parent,
+				CFrame.new(x, DECK_TOP - pileLength / 2 + 0.4, z),
+				1.1,
+				pileLength,
+				{
+					Name = "Pile",
+					Color = C.cocoa,
+				}
+			)
+			-- Biała opaska tuż nad wodą, jak na palu przystani.
+			Build.upright(parent, CFrame.new(x, 0.45, z), 1.2, 0.5, {
+				Name = "PileBand",
+				Color = C.white,
+				CastShadow = false,
 			})
 		end
 	end
 end
 
 local function buildLantern(parent: Instance)
-	local z = Dock.END_Z + 1.6
+	for _, side in { -1, 1 } do
+		local top = Build.candyCane(
+			parent,
+			CFrame.new(side * (WIDTH / 2 + 1.6), DECK_TOP, Dock.END_Z + 1),
+			0.6,
+			5,
+			C.white,
+			if side > 0 then C.rose else C.sky
+		)
 
-	Build.block(parent, {
-		Name = "LanternPost",
-		Size = Vector3.new(0.4, 4.5, 0.4),
-		Position = Vector3.new(WIDTH / 2 - 0.6, DECK_TOP + 2.25, z),
-		Color = WOOD_POST,
-		Material = Enum.Material.Wood,
-	})
+		local glass = Build.sphere(parent, {
+			Name = "LanternGlass",
+			Size = Vector3.one * 1.8,
+			CFrame = top * CFrame.new(0, 0.7, 0),
+			Color = C.vanilla,
+			Material = Enum.Material.Neon,
+		})
 
-	local glass = Build.block(parent, {
-		Name = "LanternGlass",
-		Size = Vector3.new(1, 1.2, 1),
-		Position = Vector3.new(WIDTH / 2 - 0.6, DECK_TOP + 4.4, z),
-		Color = Color3.fromRGB(255, 226, 150),
-		Material = Enum.Material.Neon,
-	})
-
-	local light = Instance.new("PointLight")
-	light.Brightness = 2.2
-	light.Range = 26
-	light.Color = Color3.fromRGB(255, 214, 150)
-	light.Shadows = false
-	light.Parent = glass
+		local light = Instance.new("PointLight")
+		light.Brightness = 1.8
+		light.Range = 26
+		light.Color = Color3.fromRGB(255, 226, 170)
+		light.Shadows = false
+		light.Parent = glass
+	end
 end
 
 --[[ Punkt na końcu pomostu — używany jako podpowiedź „idź tam po rzadkie ryby". ]]

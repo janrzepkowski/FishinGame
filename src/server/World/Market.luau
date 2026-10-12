@@ -3,23 +3,31 @@
 	Market — plac startowy, spawn i dwa stoiska: skup ryb i sklep wędkarski.
 
 	=========================================================================
+	STYL
+	=========================================================================
+	Plac jest okrągły, a stoiska to „babeczki": okrągły podest, słupki
+	z lasek cukrowych, kopuła z falbanką lukru i wielka ozdoba na czubku
+	(ryba nad skupem, spławik nad sklepem). Ozdoba jest punktem
+	orientacyjnym — dziecko trafia do skupu po rybie na dachu, zanim nauczy
+	się czytać szyld.
+
+	Żadnych ostrych krawędzi: wszystko to walce, kule, elipsoidy i „pigułki"
+	z `Build`. Kolory z `Build.COLOR`.
+
+	=========================================================================
 	SKALA
 	=========================================================================
 	Wszystkie wymiary są liczone w METRACH przez `Build.m()` i dopiero potem
 	przeliczane na study. Punktem odniesienia jest postać gracza: R15 ma
-	5,5 studa, co traktujemy jako 1,8 m człowieka.
-
-	Dzięki temu proporcje są z definicji „ludzkie": blat na 1,05 m, prześwit
-	pod okapem 2,3 m, kalenica na 3,3 m. Budynek dobrany na oko w widoku
-	z góry wygląda karłowato w sekundzie, w której stanie obok niego gracz.
+	5,5 studa, co traktujemy jako 1,8 m człowieka. Blat na 1,05 m, prześwit
+	pod daszkiem 3,3 m.
 
 	=========================================================================
 	UKŁAD LOKALNY
 	=========================================================================
 	Każde stoisko budujemy względem `CFrame.lookAt(pozycja, skądIdzieGracz)`.
 	Lokalne -Z to zawsze przód i pokrywa się z `Enum.NormalId.Front`, więc
-	szyld na pewno patrzy na gracza. Przy ręcznym obracaniu części prędzej
-	czy później jeden wyląduje tyłem i nikt tego nie zauważy do premiery.
+	szyld na pewno patrzy na gracza.
 
 	Uwaga przy czytaniu offsetów: lokalne -Z mapuje się na świat +Z, więc
 	`base * CFrame.new(0, 0, -4)` to cztery study W STRONĘ PLACU.
@@ -27,7 +35,9 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local FishModel = require(ReplicatedStorage.Shared.Util.FishModel)
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
+local Rods = require(ReplicatedStorage.Shared.Config.Rods)
 
 local Build = require(script.Parent.Build)
 local Npc = require(script.Parent.Npc)
@@ -35,6 +45,7 @@ local Npc = require(script.Parent.Npc)
 local Market = {}
 
 local m = Build.m
+local C = Build.COLOR
 
 -- ---------------------------------------------------------------------------
 -- Wymiary (metry -> study)
@@ -42,33 +53,30 @@ local m = Build.m
 
 local WIDTH = m(5.2)
 local DEPTH = m(3.4)
-local DECK = m(0.12)
+local DECK = m(0.14)
+-- Podest jest kołem opisanym na prostokącie stoiska.
+local DECK_RADIUS = m(3.3)
+-- Blat na 1,05 m: to wysokość lady, czyli funkcja człowieka, nie budynku.
 local COUNTER_TOP = m(1.05)
-local COUNTER_DEPTH = m(0.62)
--- Okap na 3,3 m i kalenica na 4,9 m. Gracz ma 1,8 m, więc pod okapem jest
--- półtora metra zapasu, a szczyt dachu sięga prawie trzech wzrostów.
--- To już nie jest stragan, tylko budka targowa — i tak ma wyglądać.
---
--- Blat ZOSTAJE na 1,05 m: to wysokość lady, czyli funkcja człowieka,
--- a nie budynku. Podnoszenie go razem z dachem zrobiłoby ladę pod brodę.
+local COUNTER_DEPTH = m(0.7)
 local EAVES = m(3.3)
-local RIDGE = m(4.9)
-local OVERHANG = m(0.55)
-local POST = m(0.16)
-local PLANK = m(0.2)
+local ROOF_RADIUS = DECK_RADIUS + m(0.4)
+local DOME_RISE = m(1.5)
+local POST = m(0.3)
 
-local PLAZA_CENTER = Vector3.new(0, 0, 18)
+--[[
+	O ile płaski wzór (krążek na posadzce) wystaje ponad powierzchnię, na
+	której leży — i zarazem jego grubość. Poniżej ok. 0,05 studa dwie
+	powierzchnie z daleka migoczą (z-fighting): bufor głębi nie umie już
+	rozstrzygnąć, która jest bliżej. Wzór leży NA powierzchni, nigdy w niej.
+]]
+local DECAL_LIFT = 0.08
+
+local PLAZA_CENTER = Vector3.new(0, 0, 14)
+local PLAZA_RADIUS = 31
 local SPAWN_POSITION = Vector3.new(0, 0.55, 24)
 local FISH_BUYER_POSITION = Vector3.new(-17, 0, -4)
 local ROD_SHOP_POSITION = Vector3.new(17, 0, -4)
-
-local STONE = Color3.fromRGB(138, 141, 148)
-local STONE_DARK = Color3.fromRGB(104, 108, 116)
-local WOOD = Color3.fromRGB(154, 114, 74)
-local WOOD_DARK = Color3.fromRGB(104, 76, 50)
-local WOOD_BEAM = Color3.fromRGB(86, 63, 42)
-local ROOF = Color3.fromRGB(78, 84, 96)
-local ROOF_DARK = Color3.fromRGB(62, 67, 78)
 
 export type StallStyle = {
 	accent: Color3,
@@ -83,28 +91,114 @@ export type StallStyle = {
 -- Plac i ścieżki
 -- ---------------------------------------------------------------------------
 
+--[[ Latarnia-lizak: laska cukrowa ze świecącą kulą. ]]
+local function buildLamp(parent: Instance, position: Vector3, color: Color3)
+	local top = Build.candyCane(parent, CFrame.new(position), 0.7, 9, C.white, color, true)
+
+	local globe = Build.sphere(parent, {
+		Name = "LampGlobe",
+		Size = Vector3.one * 2.4,
+		CFrame = top * CFrame.new(0, 1, 0),
+		Color = C.vanilla,
+		Material = Enum.Material.Neon,
+	})
+
+	local light = Instance.new("PointLight")
+	light.Brightness = 1.2
+	light.Range = 26
+	light.Color = Color3.fromRGB(255, 232, 190)
+	-- Cienie z latarni nic nie wnoszą, a kosztują na telefonach.
+	light.Shadows = false
+	light.Parent = globe
+end
+
 local function buildPlaza(parent: Instance)
 	local plaza = Build.model(parent, "Plaza")
+	local floorTop = 0.4
 
-	Build.block(plaza, {
-		Name = "Floor",
-		Size = Vector3.new(58, 0.4, 34),
-		Position = PLAZA_CENTER + Vector3.new(0, 0.2, 0),
-		Color = STONE,
-		Material = Enum.Material.Cobblestone,
-		CanCollide = true,
-	})
+	-- Okrągły plac: kremowy krążek z różową obwódką.
+	Build.upright(
+		plaza,
+		CFrame.new(PLAZA_CENTER + Vector3.new(0, 0.1, 0)),
+		PLAZA_RADIUS * 2 + 4,
+		0.2,
+		{
+			Name = "Rim",
+			Color = C.pink,
+			CanCollide = true,
+		}
+	)
+	Build.upright(
+		plaza,
+		CFrame.new(PLAZA_CENTER + Vector3.new(0, 0.2, 0)),
+		PLAZA_RADIUS * 2,
+		floorTop,
+		{
+			Name = "Floor",
+			Color = C.cream,
+			CanCollide = true,
+		}
+	)
 
-	-- Ścieżka z placu na pomost. Prowadzi gracza bez tutoriala: widać,
-	-- dokąd iść, zanim przeczyta jakikolwiek napis.
+	-- Pastelowe „guziki" na posadzce. Płaskie i bez kolizji: to wzór,
+	-- a nie próg, o który można się potknąć.
+	local dots = { C.peach, C.mint, C.lilac, C.sky, C.vanilla, C.pink }
+	for index = 1, 12 do
+		local angle = (index - 1) / 12 * math.pi * 2
+		Build.upright(
+			plaza,
+			CFrame.new(
+				PLAZA_CENTER
+					+ Vector3.new(
+						math.cos(angle) * (PLAZA_RADIUS - 5),
+						floorTop + DECAL_LIFT / 2,
+						math.sin(angle) * (PLAZA_RADIUS - 5)
+					)
+			),
+			5,
+			DECAL_LIFT,
+			{ Name = "FloorDot", Color = dots[(index - 1) % #dots + 1], CastShadow = false }
+		)
+	end
+
+	-- Ścieżka z placu na pomost: pas z okrągłymi „cukierkami" na przemian.
+	--
+	-- Ścieżka zaczyna się POD krawędzią placu i kończy pod pierwszym stopniem
+	-- pomostu, a „cukierki" leżą tylko na odcinku, na którym ścieżkę widać.
+	-- Wcześniej krążki wchodziły pod posadzkę placu i na stopnie pomostu:
+	-- dwie powierzchnie na prawie tej samej wysokości migotały, walcząc
+	-- o piksele (z-fighting).
+	local pathTop = 0.3
 	Build.block(plaza, {
 		Name = "Path",
-		Size = Vector3.new(9, 0.3, 36),
-		Position = Vector3.new(0, 0.15, -16),
-		Color = STONE_DARK,
-		Material = Enum.Material.Cobblestone,
+		Size = Vector3.new(10, pathTop, 14),
+		Position = Vector3.new(0, pathTop / 2, -22),
+		Color = C.vanilla,
 		CanCollide = true,
 	})
+	for index, z in { -19.6, -24.4 } do
+		Build.upright(plaza, CFrame.new(0, pathTop + DECAL_LIFT / 2, z), 4.4, DECAL_LIFT, {
+			Name = "PathDot",
+			Color = if index % 2 == 0 then C.peach else C.pink,
+			CastShadow = false,
+		})
+	end
+
+	-- Latarnie dookoła placu, z przerwą na ścieżkę do jeziora.
+	local lampColors = { C.rose, C.sky, C.grape, C.orange, C.mint, C.rose, C.sky }
+	for index, color in lampColors do
+		local angle = math.rad(-20 + (index - 1) * (220 / (#lampColors - 1)))
+		buildLamp(
+			plaza,
+			PLAZA_CENTER
+				+ Vector3.new(
+					math.cos(angle) * (PLAZA_RADIUS + 0.5),
+					0.2,
+					math.sin(angle) * (PLAZA_RADIUS + 0.5)
+				),
+			color
+		)
+	end
 
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
@@ -112,500 +206,373 @@ local function buildPlaza(parent: Instance)
 	spawn.Position = SPAWN_POSITION
 	spawn.Anchored = true
 	spawn.CanCollide = true
-	spawn.Material = Enum.Material.Marble
-	spawn.Color = Color3.fromRGB(196, 201, 209)
+	-- Sam spawn jest niewidzialną płytą; widać gwiazdę z krążków nad nim.
+	-- Kwadratowa płyta gryzłaby się z okrągłym placem.
+	spawn.Transparency = 1
 	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.BottomSurface = Enum.SurfaceType.Smooth
 	-- Zero sekund tarczy: gracz nie ma z kim walczyć, a świecąca kula wokół
 	-- postaci zasłaniałaby mu spławik przy pierwszym rzucie.
 	spawn.Duration = 0
 	spawn.Parent = plaza
+
+	local ringColors = { C.sky, C.white, C.lemon }
+	for index, diameter in { 13, 10, 7 } do
+		-- Każdy krążek o pełne `DECAL_LIFT` wyżej od poprzedniego.
+		Build.upright(
+			plaza,
+			CFrame.new(SPAWN_POSITION.X, floorTop + DECAL_LIFT * (index - 0.5), SPAWN_POSITION.Z),
+			diameter,
+			DECAL_LIFT,
+			{ Name = "SpawnRing", Color = ringColors[index], CastShadow = false }
+		)
+	end
 end
 
 -- ---------------------------------------------------------------------------
 -- Elementy konstrukcyjne stoiska
 -- ---------------------------------------------------------------------------
 
---[[
-	Ściana z PIONOWYCH desek zamiast jednej płyty.
+local function buildFrame(model: Model, base: CFrame, style: StallStyle)
+	Build.upright(model, base * CFrame.new(0, DECK / 2, 0), DECK_RADIUS * 2, DECK, {
+		Name = "Deck",
+		Color = C.cream,
+		CanCollide = true,
+	})
+	-- Kolorowa obwódka podestu, odrobinę szersza i niższa.
+	Build.upright(model, base * CFrame.new(0, DECK / 4, 0), DECK_RADIUS * 2 + m(0.3), DECK / 2, {
+		Name = "DeckRim",
+		Color = style.accent,
+	})
 
-	Jedna płyta w kolorze drewna czyta się jak pudełko. Deski dają pionowy
-	rytm i cień między sobą, co jest najtańszym sposobem na „to jest
-	zbudowane z czegoś", bez żadnych tekstur ani modeli.
-]]
-local function plankWall(
-	model: Model,
-	base: CFrame,
-	localZ: number,
-	width: number,
-	bottom: number,
-	top: number,
-	color: Color3
-)
-	local height = top - bottom
-	if height <= 0 then
-		return
-	end
-
-	local count = math.max(1, math.floor(width / PLANK))
-	local step = width / count
-
-	for index = 1, count do
-		local offsetX = -width / 2 + (index - 0.5) * step
-		Build.block(model, {
-			Name = "Plank",
-			Size = Vector3.new(step - 0.04, height, m(0.05)),
-			CFrame = base * CFrame.new(offsetX, bottom + height / 2, localZ),
-			-- Lekka wariacja koloru co trzecią deskę. Idealnie równy ton
-			-- wygląda jak plastik, nie jak drewno.
-			Color = if index % 3 == 0 then WOOD_DARK else color,
-			Material = Enum.Material.WoodPlanks,
-			CanCollide = true,
-		})
+	-- Cztery laski cukrowe niosące daszek.
+	for _, sx in { -1, 1 } do
+		for _, sz in { -1, 1 } do
+			Build.candyCane(
+				model,
+				base * CFrame.new(sx * (WIDTH / 2 - POST), DECK, sz * (DEPTH / 2 - POST / 2)),
+				POST,
+				EAVES - DECK,
+				C.white,
+				style.accent,
+				true
+			)
+		end
 	end
 end
 
-local function buildFrame(model: Model, base: CFrame)
+--[[
+	Tylna ścianka w kształcie łuku: prostokąt z półkolem na górze.
+	Zamyka stoisko od tyłu i jest tłem dla towaru, ale boki zostają otwarte —
+	widać sprzedawcę z każdej strony placu.
+]]
+local function buildBackdrop(model: Model, base: CFrame, style: StallStyle)
+	local width = WIDTH * 0.72
+	local wallZ = DEPTH / 2 - m(0.1)
+	local straight = EAVES - DECK - width / 2 - m(0.2)
+
 	Build.block(model, {
-		Name = "Deck",
-		Size = Vector3.new(WIDTH + m(0.3), DECK, DEPTH + m(0.3)),
-		CFrame = base * CFrame.new(0, DECK / 2, 0),
-		Color = WOOD_DARK,
-		Material = Enum.Material.WoodPlanks,
+		Name = "Backdrop",
+		Size = Vector3.new(width, straight, m(0.14)),
+		CFrame = base * CFrame.new(0, DECK + straight / 2, wallZ),
+		Color = style.stripe,
+		CanCollide = true,
+	})
+	Build.cylinder(model, {
+		Name = "BackdropArch",
+		Size = Vector3.new(m(0.14), width, width),
+		CFrame = base * CFrame.new(0, DECK + straight, wallZ) * CFrame.Angles(0, math.rad(90), 0),
+		Color = style.stripe,
+	})
+end
+
+--[[
+	Daszek-babeczka: płaski krążek, falbanka z kulek „lukru" na krawędzi,
+	kopuła w kolorze stoiska i biała czapa śmietany.
+
+	Zwraca CFrame czubka kopuły — tam staje ozdoba stoiska.
+]]
+local function buildRoof(model: Model, base: CFrame, style: StallStyle): CFrame
+	Build.upright(model, base * CFrame.new(0, EAVES, 0), ROOF_RADIUS * 2, m(0.2), {
+		Name = "RoofBrim",
+		Color = C.white,
 		CanCollide = true,
 	})
 
-	-- Cztery słupy nośne od podestu po okap.
-	for _, sx in { -1, 1 } do
-		for _, sz in { -1, 1 } do
-			Build.block(model, {
-				Name = "Post",
-				Size = Vector3.new(POST, EAVES, POST),
-				CFrame = base * CFrame.new(
-					sx * (WIDTH / 2 - POST / 2),
-					EAVES / 2,
-					sz * (DEPTH / 2 - POST / 2)
-				),
-				Color = WOOD_BEAM,
-				Material = Enum.Material.Wood,
-				CanCollide = true,
-			})
-		end
-	end
-
-	-- Oczepy spinające słupy. Bez nich słupy wyglądają jak wbite patyki.
-	for _, sz in { -1, 1 } do
-		Build.block(model, {
-			Name = "Header",
-			Size = Vector3.new(WIDTH, m(0.22), m(0.16)),
-			CFrame = base * CFrame.new(0, EAVES - m(0.11), sz * (DEPTH / 2 - POST / 2)),
-			Color = WOOD_BEAM,
-			Material = Enum.Material.Wood,
+	local drips = 18
+	for index = 1, drips do
+		local angle = (index - 1) / drips * math.pi * 2
+		Build.sphere(model, {
+			Name = "Frosting",
+			-- Co druga kulka większa: falbanka, a nie sznur pereł.
+			Size = Vector3.one * (if index % 2 == 0 then m(0.8) else m(0.6)),
+			CFrame = base * CFrame.new(
+				math.cos(angle) * ROOF_RADIUS,
+				EAVES - m(0.08),
+				math.sin(angle) * ROOF_RADIUS
+			),
+			Color = C.white,
+			CastShadow = false,
 		})
 	end
-end
 
-local function buildWalls(model: Model, base: CFrame, color: Color3)
-	-- Tylna ściana na pełną wysokość.
-	plankWall(model, base, DEPTH / 2 - m(0.08), WIDTH, DECK, EAVES, color)
-
-	-- Boki tylko w tylnej części — przód musi zostać otwarty, inaczej
-	-- stoisko zamienia się w budkę i nie widać, co jest w środku.
-	local sideDepth = DEPTH * 0.55
-	local sideZ = DEPTH / 2 - sideDepth / 2
-
-	for _, sx in { -1, 1 } do
-		Build.block(model, {
-			Name = "SideWall",
-			Size = Vector3.new(m(0.06), EAVES - DECK, sideDepth),
-			CFrame = base
-				* CFrame.new(sx * (WIDTH / 2 - m(0.05)), DECK + (EAVES - DECK) / 2, sideZ),
-			Color = color,
-			Material = Enum.Material.WoodPlanks,
-			CanCollide = true,
-		})
-	end
-end
-
---[[
-	Dach dwuspadowy: kalenica w poprzek szerokości, połacie opadające
-	na przód i tył.
-
-	Kąt liczymy z geometrii (`atan2(wzniesienie, wysięg)`), zamiast wpisywać
-	stopnie na sztywno. Dzięki temu zmiana RIDGE albo DEPTH nie wymaga
-	ponownego dobierania kąta — dach po prostu nadal się domyka.
-]]
-local function buildRoof(model: Model, base: CFrame)
-	local run = DEPTH / 2 + OVERHANG
-	local rise = RIDGE - EAVES
-	local slope = math.sqrt(run * run + rise * rise)
-	local angle = math.atan2(rise, run)
-	local span = WIDTH + OVERHANG * 2
-
-	for _, sz in { -1, 1 } do
-		-- Obrót wokół lokalnego X: dodatni kąt opuszcza lokalne +Z.
-		-- Mnożnik `sz` odbija połać na drugą stronę kalenicy.
-		local slabCFrame = base
-			* CFrame.new(0, (RIDGE + EAVES) / 2, sz * run / 2)
-			* CFrame.Angles(sz * angle, 0, 0)
-
-		Build.block(model, {
-			Name = "RoofSlab",
-			Size = Vector3.new(span, m(0.08), slope),
-			CFrame = slabCFrame,
-			Color = ROOF,
-			Material = Enum.Material.Slate,
-			CanCollide = true,
-		})
-
-		-- Rytm „gontów": cienkie listwy w poprzek połaci. Buduje się je
-		-- w układzie PŁYTY, nie świata — inaczej każdą trzeba by obracać.
-		local rows = 5
-		for row = 1, rows do
-			local along = -slope / 2 + (row - 0.5) * (slope / rows)
-			Build.block(model, {
-				Name = "RoofBatten",
-				Size = Vector3.new(span, m(0.04), m(0.06)),
-				CFrame = slabCFrame * CFrame.new(0, m(0.06), along),
-				Color = ROOF_DARK,
-				Material = Enum.Material.Slate,
-			})
-		end
-
-		-- Krokwie widoczne spod okapu.
-		for _, sx in { -1, 0, 1 } do
-			Build.block(model, {
-				Name = "Rafter",
-				Size = Vector3.new(m(0.1), m(0.12), slope),
-				CFrame = slabCFrame * CFrame.new(sx * (WIDTH / 2 - m(0.4)), -m(0.1), 0),
-				Color = WOOD_BEAM,
-				Material = Enum.Material.Wood,
-			})
-		end
-	end
-
-	Build.block(model, {
-		Name = "Ridge",
-		Size = Vector3.new(span, m(0.16), m(0.18)),
-		CFrame = base * CFrame.new(0, RIDGE, 0),
-		Color = ROOF_DARK,
-		Material = Enum.Material.Slate,
+	-- Środek kopuły jest NAD okapem: spód elipsoidy nie może zwisać
+	-- sprzedawcy nad głową.
+	local domeCenter = base * CFrame.new(0, EAVES + m(1.0), 0)
+	Build.ellipsoid(model, {
+		Name = "RoofDome",
+		Size = Vector3.new(ROOF_RADIUS * 1.9, DOME_RISE * 2, ROOF_RADIUS * 1.9),
+		CFrame = domeCenter,
+		Color = style.accent,
+	})
+	Build.ellipsoid(model, {
+		Name = "RoofCream",
+		Size = Vector3.new(ROOF_RADIUS * 1.1, DOME_RISE * 1.2, ROOF_RADIUS * 1.1),
+		CFrame = domeCenter * CFrame.new(0, DOME_RISE * 0.52, 0),
+		Color = C.white,
 	})
 
-	-- Szczyty: zamiast klina układamy poziome deski o malejącej długości.
-	-- Klin wymagałby zgadywania orientacji, a deski czytają się jak
-	-- prawdziwe szalowanie szczytu.
-	local levels = 6
-	for _, sx in { -1, 1 } do
-		for level = 1, levels do
-			local t = (level - 0.5) / levels
-			local y = EAVES + rise * t
-			local length = DEPTH * (1 - t)
-			if length > m(0.2) then
-				Build.block(model, {
-					Name = "GableBoard",
-					Size = Vector3.new(m(0.06), rise / levels, length),
-					CFrame = base * CFrame.new(sx * (WIDTH / 2 - m(0.04)), y, 0),
-					Color = WOOD,
-					Material = Enum.Material.WoodPlanks,
-				})
-			end
-		end
+	-- Posypka: kolorowe kuleczki rozsiane po kopule.
+	local sprinkles = { C.rose, C.lemon, C.sky, C.grape, C.mint, C.orange }
+	for index = 1, 14 do
+		local angle = index * 2.4
+		local ring = if index % 2 == 0 then 0.78 else 0.6
+		local height = DOME_RISE * math.sqrt(1 - ring * ring)
+		Build.sphere(model, {
+			Name = "Sprinkle",
+			Size = Vector3.one * m(0.26),
+			CFrame = domeCenter * CFrame.new(
+				math.cos(angle) * ROOF_RADIUS * 0.95 * ring,
+				height,
+				math.sin(angle) * ROOF_RADIUS * 0.95 * ring
+			),
+			Color = sprinkles[(index - 1) % #sprinkles + 1],
+			CastShadow = false,
+		})
 	end
+
+	return domeCenter * CFrame.new(0, DOME_RISE * 1.1, 0)
 end
 
 local function buildCounter(model: Model, base: CFrame, style: StallStyle): BasePart
 	local frontZ = -DEPTH / 2 + COUNTER_DEPTH / 2
+	local length = WIDTH - m(0.9)
+	local height = COUNTER_TOP - DECK
 
 	-- Lada — to w nią gracz „wchodzi" i przy niej stoi ProximityPrompt,
 	-- więc zwracamy ją jako punkt zaczepienia dla ShopService.
-	local counter = Build.block(model, {
-		Name = "Counter",
-		Size = Vector3.new(WIDTH - POST * 2, COUNTER_TOP - DECK, COUNTER_DEPTH),
-		CFrame = base * CFrame.new(0, DECK + (COUNTER_TOP - DECK) / 2, frontZ),
-		Color = style.accent,
-		Material = Enum.Material.WoodPlanks,
-		CanCollide = true,
-	})
-
-	-- Front lady z desek — ta ściana jest najbliżej oczu gracza,
-	-- więc to na niej detal zwraca się najbardziej.
-	plankWall(
+	local counter = Build.pill(
 		model,
-		base,
-		frontZ - COUNTER_DEPTH / 2 - m(0.03),
-		WIDTH - POST * 2,
-		DECK,
-		COUNTER_TOP - m(0.06),
-		style.accent
+		base * CFrame.new(0, DECK + height / 2, frontZ),
+		Vector3.new(length, height, COUNTER_DEPTH),
+		"Y",
+		{ Name = "Counter", Color = style.accent, CanCollide = true }
 	)
 
-	Build.block(model, {
-		Name = "CounterTop",
-		Size = Vector3.new(WIDTH - POST, m(0.08), COUNTER_DEPTH + m(0.18)),
-		CFrame = base * CFrame.new(0, COUNTER_TOP, frontZ - m(0.04)),
-		Color = Color3.fromRGB(216, 198, 168),
-		Material = Enum.Material.Wood,
-		CanCollide = true,
-	})
+	-- Biały pas w połowie wysokości — jak wstążka na pudełku.
+	Build.pill(
+		model,
+		base * CFrame.new(0, DECK + height * 0.5, frontZ),
+		Vector3.new(length + m(0.06), height * 0.22, COUNTER_DEPTH + m(0.06)),
+		"Y",
+		{ Name = "CounterBand", Color = C.white }
+	)
 
-	-- Półka pod blatem: widać ją od strony gracza i wypełnia pustkę
-	-- pod ladą, która inaczej wygląda jak dziura.
-	Build.block(model, {
-		Name = "Shelf",
-		Size = Vector3.new(WIDTH - POST * 3, m(0.06), COUNTER_DEPTH * 0.8),
-		CFrame = base * CFrame.new(0, COUNTER_TOP * 0.45, frontZ + m(0.1)),
-		Color = WOOD_DARK,
-		Material = Enum.Material.Wood,
-	})
+	Build.pill(
+		model,
+		base * CFrame.new(0, COUNTER_TOP + m(0.05), frontZ),
+		Vector3.new(length + m(0.3), m(0.12), COUNTER_DEPTH + m(0.3)),
+		"Y",
+		{ Name = "CounterTop", Color = C.cream, CanCollide = true }
+	)
 
 	return counter
 end
 
---[[ Szyld podwieszony na dwóch cięgnach pod przednim okapem. ]]
+--[[ Szyld-naklejka: biała pigułka z granatowym obrysem na przedniej
+     krawędzi daszku. ]]
 local function buildSign(model: Model, base: CFrame, style: StallStyle)
-	local signY = EAVES - m(0.75)
-	local signZ = -DEPTH / 2 - m(0.1)
+	local size = Vector3.new(m(3.5), m(0.9), m(0.14))
+	-- Szyld stoi NA okapie, nie wisi pod nim: podwieszony zasłaniał
+	-- sprzedawcę każdemu, kto podchodził od placu.
+	local center = base * CFrame.new(0, EAVES + m(0.75), -(ROOF_RADIUS - m(0.2)))
+
+	-- Obrys to ta sama pigułka, odrobinę większa i cofnięta.
+	Build.pill(
+		model,
+		center * CFrame.new(0, 0, m(0.04)),
+		size + Vector3.new(m(0.2), m(0.2), 0),
+		"Z",
+		{ Name = "SignOutline", Color = C.ink }
+	)
+	local board = Build.pill(model, center, size, "Z", { Name = "Sign", Color = C.white })
 
 	for _, sx in { -1, 1 } do
-		Build.block(model, {
-			Name = "SignChain",
-			Size = Vector3.new(m(0.04), m(0.5), m(0.04)),
-			CFrame = base * CFrame.new(sx * m(1.2), EAVES - m(0.25), signZ),
-			Color = Color3.fromRGB(96, 100, 108),
-			Material = Enum.Material.Metal,
+		Build.upright(model, center * CFrame.new(sx * m(1.2), -m(0.55), 0), m(0.14), m(0.4), {
+			Name = "SignLeg",
+			Color = C.ink,
 		})
 	end
-
-	local board = Build.block(model, {
-		Name = "Sign",
-		Size = Vector3.new(m(3.2), m(0.78), m(0.1)),
-		CFrame = base * CFrame.new(0, signY, signZ),
-		Color = Color3.fromRGB(38, 42, 52),
-		Material = Enum.Material.Wood,
-	})
-
-	Build.block(model, {
-		Name = "SignTrim",
-		Size = Vector3.new(m(3.3), m(0.06), m(0.12)),
-		CFrame = base * CFrame.new(0, signY - m(0.4), signZ),
-		Color = style.accent,
-		Material = Enum.Material.Wood,
-	})
 
 	Build.signFace(board, Enum.NormalId.Front, style.title, style.subtitle, style.accent)
 end
 
---[[ Pasiasta markiza nad ladą. ]]
-local function buildAwning(model: Model, base: CFrame, style: StallStyle)
-	local awningCFrame = base
-		* CFrame.new(0, EAVES - m(0.45), -DEPTH / 2 - m(0.5))
-		* CFrame.Angles(math.rad(-18), 0, 0)
-
-	local stripes = 11
-	local stripeWidth = (WIDTH + m(0.3)) / stripes
-
-	for index = 1, stripes do
-		local offsetX = -(WIDTH + m(0.3)) / 2 + (index - 0.5) * stripeWidth
-		Build.block(model, {
-			Name = "AwningStripe",
-			Size = Vector3.new(stripeWidth - 0.03, m(0.05), m(1.1)),
-			CFrame = awningCFrame * CFrame.new(offsetX, 0, 0),
-			Color = if index % 2 == 0 then style.stripe else Color3.fromRGB(240, 238, 232),
-			Material = Enum.Material.Fabric,
+local function buildLighting(model: Model, base: CFrame)
+	for _, sx in { -1, 1 } do
+		local lamp = Build.sphere(model, {
+			Name = "Lamp",
+			Size = Vector3.one * m(0.4),
+			CFrame = base * CFrame.new(sx * m(1.9), EAVES - m(0.35), -m(0.9)),
+			Color = C.vanilla,
+			Material = Enum.Material.Neon,
 		})
 
-		-- Ząbkowana krawędź — detal, który odróżnia markizę od deski.
-		Build.block(model, {
-			Name = "AwningScallop",
-			Size = Vector3.new(stripeWidth - 0.12, m(0.22), m(0.04)),
-			CFrame = awningCFrame * CFrame.new(offsetX, -m(0.12), -m(0.55)),
-			Color = if index % 2 == 0 then style.stripe else Color3.fromRGB(240, 238, 232),
-			Material = Enum.Material.Fabric,
-		})
+		local light = Instance.new("PointLight")
+		light.Brightness = 1
+		light.Range = 20
+		light.Color = Color3.fromRGB(255, 232, 190)
+		-- Cienie z lampki stoiska nic nie wnoszą, a kosztują na mobile.
+		light.Shadows = false
+		light.Parent = lamp
 	end
 end
 
-local function buildLighting(model: Model, base: CFrame)
-	local lamp = Build.block(model, {
-		Name = "Lamp",
-		Size = Vector3.new(m(0.3), m(0.16), m(0.3)),
-		CFrame = base * CFrame.new(0, EAVES - m(0.18), -m(0.4)),
-		Color = Color3.fromRGB(255, 232, 178),
-		Material = Enum.Material.Neon,
-	})
+--[[ Pęk balonów przywiązany przy stoisku. ]]
+local function buildBalloons(model: Model, anchor: CFrame, colors: { Color3 })
+	for index, color in colors do
+		local lean = (index - (#colors + 1) / 2) * 0.22
+		local length = m(2.6) + index * m(0.35)
+		local string = anchor * CFrame.Angles(0, 0, -lean)
 
-	local light = Instance.new("PointLight")
-	light.Brightness = 1.4
-	light.Range = 24
-	light.Color = Color3.fromRGB(255, 226, 176)
-	-- Cienie z lampki stoiska nic nie wnoszą, a kosztują na mobile.
-	light.Shadows = false
-	light.Parent = lamp
+		Build.upright(model, string * CFrame.new(0, length / 2, 0), m(0.04), length, {
+			Name = "BalloonString",
+			Color = C.white,
+			CastShadow = false,
+		})
+		Build.ellipsoid(model, {
+			Name = "Balloon",
+			Size = Vector3.new(m(0.85), m(1.05), m(0.85)),
+			CFrame = string * CFrame.new(0, length + m(0.45), 0),
+			Color = color,
+		})
+	end
 end
 
 -- ---------------------------------------------------------------------------
 -- Rekwizyty
 -- ---------------------------------------------------------------------------
 
-local function buildCrate(model: Model, cframe: CFrame, size: number)
-	Build.block(model, {
-		Name = "Crate",
-		Size = Vector3.new(size, size, size),
-		CFrame = cframe,
-		Color = Color3.fromRGB(158, 118, 76),
-		Material = Enum.Material.WoodPlanks,
-		CanCollide = true,
-	})
-
-	-- Okucia na krawędziach — bez nich skrzynka jest po prostu sześcianem.
-	for _, sy in { -1, 1 } do
-		Build.block(model, {
-			Name = "CrateBand",
-			Size = Vector3.new(size + 0.04, size * 0.12, size + 0.04),
-			CFrame = cframe * CFrame.new(0, sy * size * 0.32, 0),
-			Color = WOOD_DARK,
-			Material = Enum.Material.Wood,
-		})
-	end
-end
-
-local function buildBarrel(model: Model, cframe: CFrame)
-	-- Walec w Robloxie leży wzdłuż osi X, więc stawiamy go obrotem wokół Z.
-	local upright = cframe * CFrame.Angles(0, 0, math.rad(90))
-
-	Build.cylinder(model, {
+local function buildBarrel(model: Model, cframe: CFrame, color: Color3)
+	Build.upright(model, cframe, m(0.7), m(0.9), {
 		Name = "Barrel",
-		Size = Vector3.new(m(0.9), m(0.62), m(0.62)),
-		CFrame = upright,
-		Color = Color3.fromRGB(122, 86, 56),
-		Material = Enum.Material.Wood,
+		Color = color,
 		CanCollide = true,
 	})
-
-	for _, offset in { -0.25, 0.25 } do
-		Build.cylinder(model, {
+	for _, offset in { -0.28, 0.28 } do
+		Build.upright(model, cframe * CFrame.new(0, offset * m(0.9), 0), m(0.76), m(0.1), {
 			Name = "BarrelHoop",
-			Size = Vector3.new(m(0.06), m(0.66), m(0.66)),
-			CFrame = upright * CFrame.new(offset * m(0.9), 0, 0),
-			Color = Color3.fromRGB(94, 98, 106),
-			Material = Enum.Material.Metal,
+			Color = C.white,
 		})
 	end
 end
 
-local function buildFishBuyerProps(model: Model, base: CFrame)
+local function buildFishBuyerProps(model: Model, base: CFrame, top: CFrame)
 	local frontZ = -DEPTH / 2 + COUNTER_DEPTH / 2
 
-	-- Lód na ladzie i ryby na nim — od razu widać, co to za stoisko,
-	-- bez czytania szyldu.
-	Build.block(model, {
-		Name = "Ice",
-		Size = Vector3.new(WIDTH - m(1.2), m(0.1), COUNTER_DEPTH * 0.7),
-		CFrame = base * CFrame.new(0, COUNTER_TOP + m(0.08), frontZ - m(0.04)),
-		Color = Color3.fromRGB(198, 230, 240),
-		Material = Enum.Material.Ice,
-		Transparency = 0.25,
-	})
+	-- Tacka z lodem i ryby na niej — od razu widać, co to za stoisko.
+	-- To TE SAME modele, które gracz wyciąga z jeziora.
+	Build.pill(
+		model,
+		base * CFrame.new(0, COUNTER_TOP + m(0.14), frontZ),
+		Vector3.new(WIDTH - m(1.8), m(0.1), COUNTER_DEPTH * 0.8),
+		"Y",
+		{ Name = "Ice", Color = Color3.fromRGB(214, 244, 255) }
+	)
 
-	local display = {
-		Color3.fromRGB(176, 128, 72),
-		Color3.fromRGB(122, 136, 150),
-		Color3.fromRGB(232, 132, 110),
-		Color3.fromRGB(88, 124, 96),
-		Color3.fromRGB(198, 203, 211),
-	}
-
-	for index, color in display do
-		Build.sphere(model, {
-			Name = "DisplayFish",
-			Size = Vector3.new(m(0.52), m(0.19), m(0.15)),
-			CFrame = base
-				* CFrame.new(m(-1.3 + (index - 1) * 0.65), COUNTER_TOP + m(0.17), frontZ - m(0.04))
-				* CFrame.Angles(0, math.rad(14 * index), 0),
-			Color = color,
-			Material = Enum.Material.SmoothPlastic,
-		})
+	local display = { "carp", "perch", "salmon", "roach", "pike" }
+	for index, fishId in display do
+		local fish = FishModel.build(fishId, 0.42)
+		fish.Name = "DisplayFish"
+		-- Ryba leży na boku, lekko skręcona — jak rzucona na lód.
+		fish:PivotTo(
+			base
+				* CFrame.new(m(-1.5 + (index - 1) * 0.75), COUNTER_TOP + m(0.3), frontZ)
+				* CFrame.Angles(0, math.rad(60 + index * 23), math.rad(90))
+		)
+		fish.Parent = model
 	end
 
-	-- Waga uchylna na końcu lady.
-	Build.block(model, {
-		Name = "ScalePost",
-		Size = Vector3.new(m(0.07), m(0.8), m(0.07)),
-		CFrame = base * CFrame.new(m(1.9), COUNTER_TOP + m(0.4), frontZ),
-		Color = Color3.fromRGB(96, 100, 108),
-		Material = Enum.Material.Metal,
-	})
-	Build.cylinder(model, {
-		Name = "ScalePan",
-		Size = Vector3.new(m(0.05), m(0.42), m(0.42)),
-		CFrame = base
-			* CFrame.new(m(1.9), COUNTER_TOP + m(0.08), frontZ)
-			* CFrame.Angles(0, 0, math.rad(90)),
-		Color = Color3.fromRGB(176, 180, 188),
-		Material = Enum.Material.Metal,
-	})
+	-- Wielka ryba na dachu: znak rozpoznawczy skupu.
+	local mascot = FishModel.build("carp", 2.3)
+	mascot.Name = "RoofFish"
+	mascot:PivotTo(top * CFrame.new(0, m(0.75), 0) * CFrame.Angles(0, math.rad(-70), 0))
+	mascot.Parent = model
 
-	buildCrate(
+	buildBarrel(
 		model,
-		base * CFrame.new(-WIDTH / 2 + m(0.7), DECK + m(0.3), DEPTH / 2 - m(0.8)),
-		m(0.6)
+		base * CFrame.new(WIDTH / 2 - m(0.4), DECK + m(0.45), DEPTH / 2 - m(0.3)),
+		C.aqua
 	)
-	buildCrate(
+	buildBarrel(
 		model,
-		base * CFrame.new(-WIDTH / 2 + m(0.7), DECK + m(0.9), DEPTH / 2 - m(0.8)),
-		m(0.5)
+		base * CFrame.new(-WIDTH / 2 + m(0.4), DECK + m(0.45), DEPTH / 2 - m(0.3)),
+		C.sky
 	)
-	buildBarrel(model, base * CFrame.new(WIDTH / 2 - m(0.7), DECK + m(0.45), DEPTH / 2 - m(0.8)))
 end
 
-local function buildRodShopProps(model: Model, base: CFrame)
-	-- Stojak z wędkami na tylnej ścianie.
-	for _, y in { EAVES - m(0.5), m(0.6) } do
-		Build.block(model, {
-			Name = "RackBar",
-			Size = Vector3.new(WIDTH - m(1.4), m(0.08), m(0.08)),
-			CFrame = base * CFrame.new(0, y, DEPTH / 2 - m(0.25)),
-			Color = WOOD_BEAM,
-			Material = Enum.Material.Wood,
-		})
-	end
+local function buildRodShopProps(model: Model, base: CFrame, top: CFrame)
+	local wallZ = DEPTH / 2 - m(0.28)
 
-	local rodColors = {
-		Color3.fromRGB(141, 102, 60),
-		Color3.fromRGB(72, 86, 102),
-		Color3.fromRGB(38, 40, 46),
-		Color3.fromRGB(196, 158, 72),
-	}
+	-- Wędki z katalogu wystawione na tylnej ściance, w swoich kolorach.
+	for index, definition in Rods.all() do
+		local x = m(-1.2 + (index - 1) * 0.8)
+		local length = m(2.0)
 
-	for index, color in rodColors do
-		local x = m(-1.4 + (index - 1) * 0.95)
-
-		Build.block(model, {
-			Name = "DisplayRod",
-			Size = Vector3.new(m(0.05), EAVES - m(0.9), m(0.05)),
-			CFrame = base * CFrame.new(x, EAVES / 2 + m(0.1), DEPTH / 2 - m(0.3)),
-			Color = color,
-			Material = Enum.Material.Wood,
-		})
-
-		-- Kołowrotek przy każdej wystawionej wędce — ten detal odróżnia
-		-- stojak z wędkami od stojaka z patykami.
-		Build.cylinder(model, {
+		Build.upright(
+			model,
+			base * CFrame.new(x, DECK + m(0.3) + length / 2, wallZ),
+			m(0.09),
+			length,
+			{
+				Name = "DisplayRod",
+				Color = definition.color,
+			}
+		)
+		Build.sphere(model, {
 			Name = "DisplayReel",
-			Size = Vector3.new(m(0.07), m(0.2), m(0.2)),
-			CFrame = base * CFrame.new(x, m(1.1), DEPTH / 2 - m(0.38)),
-			Color = Color3.fromRGB(196, 200, 208),
-			Material = Enum.Material.Metal,
+			Size = Vector3.one * m(0.24),
+			CFrame = base * CFrame.new(x, DECK + m(0.75), wallZ - m(0.1)),
+			Color = C.white,
 		})
 	end
 
-	buildCrate(
+	-- Wielki spławik na dachu: znak rozpoznawczy sklepu.
+	local float = top * CFrame.new(0, m(0.7), 0)
+	Build.sphere(model, {
+		Name = "RoofFloatTop",
+		Size = Vector3.one * m(1.5),
+		CFrame = float,
+		Color = C.cherry,
+	})
+	Build.upright(model, float * CFrame.new(0, -m(0.1), 0), m(1.54), m(0.36), {
+		Name = "RoofFloatBand",
+		Color = C.white,
+	})
+	Build.upright(model, float * CFrame.new(0, m(1.05), 0), m(0.12), m(0.9), {
+		Name = "RoofFloatAntenna",
+		Color = C.lemon,
+	})
+
+	buildBarrel(
 		model,
-		base * CFrame.new(WIDTH / 2 - m(0.7), DECK + m(0.3), DEPTH / 2 - m(0.8)),
-		m(0.6)
+		base * CFrame.new(WIDTH / 2 - m(0.4), DECK + m(0.45), DEPTH / 2 - m(0.3)),
+		C.orange
 	)
-	buildBarrel(model, base * CFrame.new(-WIDTH / 2 + m(0.7), DECK + m(0.45), DEPTH / 2 - m(0.8)))
+	buildBarrel(
+		model,
+		base * CFrame.new(-WIDTH / 2 + m(0.4), DECK + m(0.45), DEPTH / 2 - m(0.3)),
+		C.lemon
+	)
 end
 
 -- ---------------------------------------------------------------------------
@@ -614,23 +581,32 @@ local function buildStall(
 	parent: Instance,
 	position: Vector3,
 	style: StallStyle,
-	props: (Model, CFrame) -> ()
+	props: (Model, CFrame, CFrame) -> ()
 ): BasePart
 	-- Gracz przychodzi od placu, czyli od +Z. `lookAt` ustawia lokalne -Z
 	-- (czyli Enum.NormalId.Front) dokładnie w jego stronę.
 	local base = CFrame.lookAt(position, position + Vector3.new(0, 0, 1))
+		-- Stoisko stoi NA placu, nie w nim.
+		* CFrame.new(0, 0.4, 0)
 
 	local model = Build.model(parent, style.title)
 
-	buildFrame(model, base)
-	buildWalls(model, base, style.accent)
-	buildRoof(model, base)
-	buildAwning(model, base, style)
+	buildFrame(model, base, style)
+	buildBackdrop(model, base, style)
+	local top = buildRoof(model, base, style)
 	buildSign(model, base, style)
 	buildLighting(model, base)
 
 	local counter = buildCounter(model, base, style)
-	props(model, base)
+	props(model, base, top)
+
+	for _, sx in { -1, 1 } do
+		buildBalloons(
+			model,
+			base * CFrame.new(sx * (WIDTH / 2 + m(0.5)), DECK + m(0.9), -DEPTH / 2 + m(0.2)),
+			if sx < 0 then { C.rose, C.lemon, C.sky } else { C.mint, C.grape, C.orange }
+		)
+	end
 
 	-- Sprzedawca stoi na podłodze stoiska, tuż za ladą, przodem do klienta.
 	Npc.spawn(
@@ -648,6 +624,8 @@ local function buildStall(
 	prompt.MaxActivationDistance = 12
 	prompt.HoldDuration = 0
 	prompt.RequiresLineOfSight = false
+	-- Własny wygląd podpowiedzi rysuje klient (`UI/PromptBubble`).
+	prompt.Style = Enum.ProximityPromptStyle.Custom
 	prompt.Parent = counter
 
 	return counter
@@ -664,8 +642,8 @@ function Market.build(parent: Instance): Stands
 	buildPlaza(market)
 
 	local fishBuyer = buildStall(market, FISH_BUYER_POSITION, {
-		accent = Color3.fromRGB(86, 164, 128),
-		stripe = Color3.fromRGB(58, 132, 102),
+		accent = C.aqua,
+		stripe = C.sky,
 		title = "Skup ryb",
 		subtitle = "Sprzedaj cały połów",
 		promptAction = "Sprzedaj ryby",
@@ -673,8 +651,8 @@ function Market.build(parent: Instance): Stands
 	}, buildFishBuyerProps)
 
 	local rodShop = buildStall(market, ROD_SHOP_POSITION, {
-		accent = Color3.fromRGB(206, 152, 74),
-		stripe = Color3.fromRGB(188, 124, 54),
+		accent = C.orange,
+		stripe = C.vanilla,
 		title = "Sklep wędkarski",
 		subtitle = "Lepsza wędka = rzadsze ryby",
 		promptAction = "Otwórz sklep",

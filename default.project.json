@@ -2,25 +2,21 @@
   "name": "FishinGame",
   "tree": {
     "$className": "DataModel",
-
     "ReplicatedStorage": {
       "Shared": {
         "$path": "src/shared"
       }
     },
-
     "ServerScriptService": {
       "Server": {
         "$path": "src/server"
       }
     },
-
     "ServerStorage": {
       "NaturePack": {
         "$path": "assets/NaturePack.rbxm"
       }
     },
-
     "StarterPlayer": {
       "StarterPlayerScripts": {
         "Client": {
@@ -28,61 +24,75 @@
         }
       }
     },
-
     "StarterGui": {
       "$properties": {
         "ResetPlayerGuiOnSpawn": false
       }
     },
-
     "Workspace": {
       "$properties": {
         "FilteringEnabled": true,
-
         "StreamingEnabled": true,
         "StreamingMinRadius": 160,
         "StreamingTargetRadius": 512,
         "StreamingIntegrityMode": "MinimumRadiusPause"
       }
     },
-
     "Lighting": {
       "$properties": {
-        "Ambient": [0.117647, 0.133333, 0.168627],
-        "Brightness": 2.4,
+        "Ambient": [
+          0.3,
+          0.3,
+          0.4
+        ],
+        "Brightness": 1.6,
         "ClockTime": 17.5,
-        "EnvironmentDiffuseScale": 0.45,
-        "EnvironmentSpecularScale": 0.35,
-        "ExposureCompensation": 0.15,
+        "EnvironmentDiffuseScale": 0.4,
+        "EnvironmentSpecularScale": 0.2,
+        "ExposureCompensation": -0.45,
         "GeographicLatitude": 52,
         "GlobalShadows": true,
-        "OutdoorAmbient": [0.447058, 0.498039, 0.564705],
+        "OutdoorAmbient": [
+          0.44,
+          0.46,
+          0.54
+        ],
         "Outlines": false,
-        "ShadowSoftness": 0.2,
-        "Technology": "ShadowMap"
+        "ShadowSoftness": 0.5,
+        "Technology": "ShadowMap",
+        "ColorShift_Top": [
+          1.0,
+          0.96,
+          0.9
+        ]
       },
-
       "Atmosphere": {
         "$className": "Atmosphere",
         "$properties": {
-          "Color": [0.788235, 0.819607, 0.862745],
-          "Decay": [0.419607, 0.470588, 0.556862],
-          "Density": 0.25,
-          "Glare": 0.25,
-          "Haze": 0.6,
+          "Color": [
+            0.86,
+            0.9,
+            1.0
+          ],
+          "Decay": [
+            0.7,
+            0.8,
+            1.0
+          ],
+          "Density": 0.14,
+          "Glare": 0.0,
+          "Haze": 0.3,
           "Offset": 0.2
         }
       },
-
       "Bloom": {
         "$className": "BloomEffect",
         "$properties": {
-          "Intensity": 0.55,
-          "Size": 22,
-          "Threshold": 1.65
+          "Intensity": 0.2,
+          "Size": 20,
+          "Threshold": 2.2
         }
       },
-
       "SunRays": {
         "$className": "SunRaysEffect",
         "$properties": {
@@ -90,18 +100,20 @@
           "Spread": 0.6
         }
       },
-
       "Grade": {
         "$className": "ColorCorrectionEffect",
         "$properties": {
-          "Brightness": 0.015,
-          "Contrast": 0.09,
-          "Saturation": 0.12,
-          "TintColor": [1, 0.92549, 0.823529]
+          "Brightness": 0.0,
+          "Contrast": 0.06,
+          "Saturation": 0.2,
+          "TintColor": [
+            1.0,
+            0.98,
+            0.97
+          ]
         }
       }
     },
-
     "SoundService": {
       "$properties": {
         "RespectFilteringEnabled": true

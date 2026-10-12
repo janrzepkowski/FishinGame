@@ -32,7 +32,7 @@ local Theme = require(script.Parent.Theme)
 
 local Hotbar = {}
 
-local SLOT = 76
+local SLOT = 80
 local SLOT_PHONE = 64
 
 local root: Frame? = nil
@@ -97,18 +97,30 @@ function Hotbar.mount(parent: Instance)
 		Size = UDim2.new(1, -6, 0, 14),
 		Font = Theme.FONT_BOLD,
 		TextSize = Theme.TEXT.micro,
-		TextColor3 = Theme.COLOR.textMuted,
+		TextColor3 = Theme.COLOR.text,
 		TextXAlignment = Enum.TextXAlignment.Center,
 		TextTruncate = Enum.TextTruncate.AtEnd,
 		Text = "",
 	})
 
-	local button = Theme.button({
-		Name = "Slot",
-		Size = UDim2.fromOffset(SLOT, SLOT),
-		BackgroundColor3 = Theme.COLOR.panel,
-		Text = "",
-	}, Theme.stroke(Theme.COLOR.accent, 2), label)
+	Theme.outline(label, Theme.COLOR.outline, 1.5)
+
+	local button = Theme.button(
+		{
+			Name = "Slot",
+			Size = UDim2.fromOffset(SLOT, SLOT),
+			BackgroundColor3 = Theme.COLOR.panel,
+			Text = "",
+		},
+		Theme.stroke(Theme.COLOR.outline, Theme.OUTLINE),
+		label,
+		-- Plakietka z klawiszem w rogu: skrót widać bez samouczka.
+		Theme.badge("1", Theme.COLOR.pink, {
+			Name = "Key",
+			Position = UDim2.fromOffset(-8, -8),
+			ZIndex = 5,
+		})
+	)
 
 	-- Kliknięcie w slot robi dokładnie to samo, co klawisz `1`. Logika
 	-- siedzi w `FishingController` — tutaj byłaby jej drugą kopią, która
@@ -173,8 +185,9 @@ function Hotbar.setEquipped(equipped: boolean)
 
 	local outline = holder:FindFirstChildOfClass("UIStroke")
 	if outline then
-		outline.Color = if equipped then Theme.COLOR.accent else Theme.COLOR.stroke
-		outline.Thickness = if equipped then 2 else 1
+		-- Wędka w ręce = złota ramka slotu.
+		outline.Color = if equipped then Theme.COLOR.coin else Theme.COLOR.outline
+		outline.Thickness = if equipped then Theme.OUTLINE + 1 else Theme.OUTLINE
 	end
 end
 

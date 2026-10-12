@@ -118,10 +118,21 @@ end
 -- ---------------------------------------------------------------------------
 
 -- Szerokość podglądu 3D i wynikające z niej wcięcia tekstu. Wszystkie
--- teksty w wierszu zaczynają się za podglądem, a kończą przed przyciskiem.
-local PREVIEW = 70
+-- teksty w karcie zaczynają się za podglądem, a kończą przed przyciskiem.
+local PREVIEW = 84
+local BUTTON = Vector2.new(112, 46)
 local TEXT_X = PREVIEW + Theme.SPACE.md
-local TEXT_INSET = TEXT_X + 118
+local TEXT_INSET = TEXT_X + BUTTON.X + Theme.SPACE.md
+local ROW_HEIGHT = PREVIEW + Theme.SPACE.sm * 2
+
+-- Kolor tła podglądu każdej kolejnej wędki: drabinka czyta się jak
+-- rzadkość ryb — im dalej, tym „cenniejszy" kolor.
+local TIER_COLORS = {
+	Color3.fromRGB(150, 214, 110),
+	Color3.fromRGB(90, 190, 255),
+	Color3.fromRGB(190, 120, 255),
+	Color3.fromRGB(255, 196, 60),
+}
 
 local function buildStatBars(parent: Instance, definition: Types.RodDefinition)
 	local slice = 1 / #STATS
@@ -129,7 +140,7 @@ local function buildStatBars(parent: Instance, definition: Types.RodDefinition)
 	for index, spec in STATS do
 		local track, fill = Theme.progress({
 			Name = spec.label,
-			Size = UDim2.new(slice, -6, 0, 5),
+			Size = UDim2.new(slice, -6, 0, 10),
 			Position = UDim2.fromScale((index - 1) * slice, 0),
 		}, spec.color)
 
@@ -143,27 +154,28 @@ local function buildRow(definition: Types.RodDefinition): RowHandle
 		Name = "Action",
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.fromScale(1, 0.5),
-		Size = UDim2.fromOffset(104, 38),
+		Size = UDim2.fromOffset(BUTTON.X, BUTTON.Y),
 		BackgroundColor3 = Theme.COLOR.accent,
-		TextSize = Theme.TEXT.small,
+		TextSize = Theme.TEXT.lead,
 		Text = "",
-	})
+	}, Theme.gloss(Theme.RADIUS.sm))
 
 	local status = Theme.label({
 		Name = "StatLegend",
 		Size = UDim2.new(1, -TEXT_INSET, 0, 16),
-		Position = UDim2.fromOffset(TEXT_X, 24),
+		Position = UDim2.fromOffset(TEXT_X, 32),
 		TextSize = Theme.TEXT.micro,
 		TextColor3 = Theme.COLOR.textMuted,
+		TextTruncate = Enum.TextTruncate.AtEnd,
 		-- Legenda jest STAŁA — paski niżej pokazują wartości. Powtarzanie
 		-- liczb w tekście zdublowałoby to, co i tak widać.
-		Text = "szczęście · tempo brań · okno · żyłka",
+		Text = "szczęście · tempo · okno · żyłka",
 	})
 
 	local statArea = Theme.create("Frame", {
 		Name = "Stats",
-		Size = UDim2.new(1, -TEXT_INSET, 0, 5),
-		Position = UDim2.fromOffset(TEXT_X, 46),
+		Size = UDim2.new(1, -TEXT_INSET, 0, 10),
+		Position = UDim2.fromOffset(TEXT_X, 56),
 		BackgroundTransparency = 1,
 	}) :: Frame
 
@@ -175,36 +187,28 @@ local function buildRow(definition: Types.RodDefinition): RowHandle
 		Name = "Preview",
 		Size = UDim2.fromOffset(PREVIEW, PREVIEW),
 		Position = UDim2.fromOffset(0, 0),
-		BackgroundColor3 = Theme.COLOR.panel,
-		BackgroundTransparency = 0.35,
+		BackgroundColor3 = TIER_COLORS[definition.order] or Theme.COLOR.panelHigh,
+		BackgroundTransparency = 0,
 	}, RodModel.toPreview(definition), 7.5)
 
-	Theme.corner(Theme.RADIUS.sm).Parent = preview
+	Theme.corner(Theme.RADIUS.md).Parent = preview
+	Theme.stroke(Theme.COLOR.outline, 2).Parent = preview
 
-	local frame = Theme.create(
-		"Frame",
-		{
-			Name = definition.id,
-			Size = UDim2.new(1, -10, 0, 80),
-			LayoutOrder = definition.order,
-			BackgroundColor3 = Theme.COLOR.panelAlt,
-			BackgroundTransparency = 0.25,
-			BorderSizePixel = 0,
-		},
-		Theme.corner(Theme.RADIUS.md),
-		Theme.padding(Theme.SPACE.sm, Theme.SPACE.md),
-		preview,
-		Theme.label({
-			Size = UDim2.new(1, -TEXT_INSET, 0, 22),
-			Position = UDim2.fromOffset(TEXT_X, 2),
-			Font = Theme.FONT_BOLD,
-			TextSize = Theme.TEXT.body,
-			Text = definition.displayName,
-		}),
-		status,
-		statArea,
-		button
-	) :: Frame
+	local nameLabel = Theme.label({
+		Size = UDim2.new(1, -TEXT_INSET, 0, 24),
+		Position = UDim2.fromOffset(TEXT_X, 4),
+		Font = Theme.FONT_BOLD,
+		TextSize = Theme.TEXT.lead,
+		TextTruncate = Enum.TextTruncate.AtEnd,
+		Text = definition.displayName,
+	})
+	Theme.outline(nameLabel, Theme.COLOR.outline, 2)
+
+	local frame = Theme.card({
+		Name = definition.id,
+		Size = UDim2.new(1, -8, 0, ROW_HEIGHT),
+		LayoutOrder = definition.order,
+	}, Theme.padding(Theme.SPACE.sm, Theme.SPACE.sm), preview, nameLabel, status, statArea, button)
 
 	button.MouseButton1Click:Connect(function()
 		local profile = lastProfile
@@ -221,54 +225,71 @@ end
 function ShopPanel.mount(parent: Instance)
 	local rowList = Theme.create("ScrollingFrame", {
 		Name = "List",
-		Size = UDim2.new(1, 0, 1, -58),
-		Position = UDim2.fromOffset(0, 58),
+		Size = UDim2.new(1, 0, 1, -40),
+		Position = UDim2.fromOffset(0, 40),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		ScrollBarThickness = 4,
-		ScrollBarImageColor3 = Theme.COLOR.stroke,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = Theme.COLOR.white,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
-	}, Theme.list(Theme.SPACE.sm)) :: ScrollingFrame
+	}, Theme.list(Theme.SPACE.md), Theme.padding(4)) :: ScrollingFrame
 
-	local close = Theme.closeButton({})
-	close.MouseButton1Click:Connect(function()
-		ShopPanel.setVisible(false)
-	end)
-
+	-- Stan portfela jako złota pigułka — ta sama, którą gracz zna z HUD-u.
 	local coins = Theme.label({
-		Size = UDim2.new(1, -46, 0, 18),
-		Position = UDim2.fromOffset(0, 28),
-		Font = Theme.FONT_BOLD,
-		TextSize = Theme.TEXT.small,
-		TextColor3 = Theme.COLOR.coin,
+		Name = "Coins",
+		Size = UDim2.new(1, -40, 1, 0),
+		Position = UDim2.fromOffset(36, 0),
+		Font = Theme.FONT_DISPLAY,
+		TextSize = Theme.TEXT.lead,
+		TextYAlignment = Enum.TextYAlignment.Center,
+		ZIndex = 3,
 		Text = "",
 	})
+	Theme.outline(coins)
+
+	local wallet = Theme.create(
+		"Frame",
+		{
+			Name = "Wallet",
+			Position = UDim2.fromOffset(8, 2),
+			Size = UDim2.fromOffset(190, 30),
+			BackgroundColor3 = Theme.COLOR.coin,
+			BorderSizePixel = 0,
+		},
+		Theme.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+		Theme.stroke(Theme.COLOR.outline, Theme.OUTLINE),
+		Theme.candyGradient(0.2),
+		Theme.icon("$", Theme.COLOR.coin:Lerp(Color3.new(1, 1, 1), 0.2), 36, {
+			AnchorPoint = Vector2.new(0, 0.5),
+			Position = UDim2.new(0, -6, 0.5, 0),
+			ZIndex = 4,
+		}),
+		coins
+	) :: Frame
 
 	coinsLabel = coins
 
-	root = Theme.panel(
+	local window, body = Theme.window(
 		{
 			Name = "Shop",
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
-			Size = UDim2.fromOffset(460, 380),
-			BackgroundTransparency = 0.02,
+			Size = UDim2.fromOffset(500, 440),
 			Visible = false,
 			Parent = parent,
 		},
-		Theme.padding(Theme.SPACE.lg, Theme.SPACE.md),
-		Theme.label({
-			Size = UDim2.new(1, -46, 0, 26),
-			Font = Theme.FONT_BLACK,
-			TextSize = Theme.TEXT.lead,
-			Text = "Sklep wędkarski",
-		}),
-		coins,
-		close,
-		rowList
+		"Sklep wędkarski",
+		Theme.COLOR.orange,
+		function()
+			ShopPanel.setVisible(false)
+		end
 	)
+
+	wallet.Parent = body
+	rowList.Parent = body
+	root = window
 
 	for _, definition in Rods.all() do
 		local handle = buildRow(definition)
@@ -286,9 +307,9 @@ function ShopPanel.mount(parent: Instance)
 			-- Prawie pełny ekran: cztery karty z paskami nie zmieszczą się
 			-- czytelnie w okienku na telefonie.
 			panel.Size =
-				UDim2.fromOffset(math.min(viewport.X - 20, 460), math.min(viewport.Y - 90, 440))
+				UDim2.fromOffset(math.min(viewport.X - 20, 500), math.min(viewport.Y - 90, 460))
 		else
-			panel.Size = UDim2.fromOffset(460, math.min(viewport.Y * 0.72, 420))
+			panel.Size = UDim2.fromOffset(500, math.min(viewport.Y * 0.78, 500))
 		end
 	end)
 end
@@ -298,7 +319,7 @@ function ShopPanel.update(profile: Types.Profile)
 
 	local coins = coinsLabel
 	if coins then
-		coins.Text = `Masz {Format.coins(profile.coins)} monet`
+		coins.Text = Format.coins(profile.coins)
 	end
 
 	for rodId, handle in rows do
@@ -312,33 +333,36 @@ function ShopPanel.update(profile: Types.Profile)
 		local affordable = profile.coins >= definition.price
 
 		if equipped then
-			handle.button.Text = "Założona"
+			handle.button.Text = "W ręce"
 			Theme.setButtonColor(handle.button, Theme.COLOR.success)
-			handle.button.TextColor3 = Theme.COLOR.textInverse
 		elseif owned then
 			handle.button.Text = "Załóż"
 			Theme.setButtonColor(handle.button, Theme.COLOR.accent)
-			handle.button.TextColor3 = Theme.COLOR.textInverse
 		else
 			handle.button.Text = Format.coins(definition.price)
 			-- Przygaszamy to, czego gracza nie stać, ale przycisk zostaje
 			-- klikalny — odmowę wraz z powodem wysyła serwer.
 			Theme.setButtonColor(
 				handle.button,
-				if affordable then Theme.COLOR.coin else Theme.COLOR.panelHigh
+				if affordable then Theme.COLOR.coin else Theme.COLOR.well
 			)
-			handle.button.TextColor3 = if affordable
-				then Theme.COLOR.textInverse
-				else Theme.COLOR.textMuted
 		end
+		handle.button.TextColor3 = if owned or affordable
+			then Theme.COLOR.textInverse
+			else Theme.COLOR.textMuted
 
-		handle.frame.BackgroundTransparency = if equipped then 0.08 else 0.25
+		-- Karta wędki w ręce ma zieloną ramkę: widać ją bez czytania przycisku.
+		local stroke = handle.frame:FindFirstChildOfClass("UIStroke")
+		if stroke then
+			stroke.Color = if equipped then Theme.COLOR.success else Theme.COLOR.outline
+			stroke.Thickness = if equipped then 3 else 2
+		end
 	end
 end
 
 function ShopPanel.setVisible(visible: boolean)
 	if root then
-		root.Visible = visible
+		Theme.setVisible(root, visible)
 	end
 end
 

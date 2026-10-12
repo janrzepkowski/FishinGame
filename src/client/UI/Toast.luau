@@ -44,9 +44,9 @@ local SLIDE = 0.18
 local FADE = 0.28
 -- Przy spamie (np. klikanie w pełną torbę) nie zasłaniamy pół ekranu.
 local MAX_VISIBLE = 4
-local WIDTH = 268
-local WIDTH_PHONE = 200
-local ROW = 44
+local WIDTH = 300
+local WIDTH_PHONE = 220
+local ROW = 48
 
 local container: Frame? = nil
 local active = 0
@@ -57,7 +57,7 @@ local sequence = 0
 type Style = { color: Color3, icon: string }
 
 local STYLES: { [string]: Style } = {
-	Info = { color = Theme.COLOR.accent, icon = "i" },
+	Info = { color = Theme.COLOR.accentDeep, icon = "i" },
 	Success = { color = Theme.COLOR.success, icon = "✓" },
 	Warning = { color = Theme.COLOR.warning, icon = "!" },
 }
@@ -105,31 +105,27 @@ function Toast.show(message: string, kind: string?)
 
 	local style = STYLES[kind or "Info"] or STYLES.Info
 
-	local icon = Theme.label({
-		Size = UDim2.fromOffset(22, 22),
-		Position = UDim2.fromOffset(0, 0),
-		Font = Theme.FONT_BLACK,
-		TextSize = Theme.TEXT.small,
-		TextColor3 = Theme.COLOR.textInverse,
-		TextXAlignment = Enum.TextXAlignment.Center,
-		Text = style.icon,
-		BackgroundColor3 = style.color,
-		BackgroundTransparency = 0,
+	-- Okrągła ikona w jaśniejszym odcieniu tła, jak na pigułkach HUD-u.
+	local icon = Theme.icon(style.icon, style.color:Lerp(Color3.new(1, 1, 1), 0.3), 28, {
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.fromScale(0, 0.5),
 	})
-	Theme.corner(Theme.RADIUS.pill).Parent = icon
+	local iconStroke = icon:FindFirstChildOfClass("UIStroke")
 
 	-- Tekst zawija się zamiast rozpychać panel: kolumna ma stałą szerokość,
 	-- żeby komunikaty układały się w równy słupek, a nie w schodki.
 	local label = Theme.label({
-		Size = UDim2.new(1, -30, 1, 0),
-		Position = UDim2.fromOffset(30, 0),
-		Font = Theme.FONT_BOLD,
+		Size = UDim2.new(1, -36, 1, 0),
+		Position = UDim2.fromOffset(36, 0),
+		Font = Theme.FONT,
 		TextSize = Theme.TEXT.small,
 		TextColor3 = Theme.COLOR.text,
 		TextYAlignment = Enum.TextYAlignment.Center,
 		TextWrapped = true,
 		Text = message,
 	})
+	Theme.outline(label, Theme.COLOR.outline, 1.5)
+	local labelStroke = label:FindFirstChildOfClass("UIStroke")
 
 	local inner = Theme.create("Frame", {
 		Name = "Inner",
@@ -137,19 +133,26 @@ function Toast.show(message: string, kind: string?)
 		BackgroundTransparency = 1,
 	}, icon, label) :: Frame
 
-	local frame = Theme.panel({
-		Name = "Toast",
-		Size = UDim2.new(1, 0, 0, ROW),
-		LayoutOrder = sequence,
-		BackgroundTransparency = 0.04,
-		Parent = parent,
-	}, Theme.padding(Theme.SPACE.sm, Theme.SPACE.md), inner)
+	-- Cała pigułka w kolorze rodzaju komunikatu: zielona = udało się,
+	-- pomarańczowa = uwaga. Kolor czyta się, zanim gracz przeczyta zdanie.
+	local frame = Theme.create(
+		"Frame",
+		{
+			Name = "Toast",
+			Size = UDim2.new(1, 0, 0, ROW),
+			LayoutOrder = sequence,
+			BackgroundColor3 = style.color,
+			BorderSizePixel = 0,
+			Parent = parent,
+		},
+		Theme.corner(Theme.RADIUS.lg),
+		Theme.stroke(Theme.COLOR.outline, Theme.OUTLINE),
+		Theme.candyGradient(0.16),
+		Theme.padding(Theme.SPACE.sm, Theme.SPACE.md),
+		inner
+	) :: Frame
 
 	local stroke = frame:FindFirstChildOfClass("UIStroke")
-	if stroke then
-		stroke.Color = style.color
-		stroke.Thickness = 1.5
-	end
 
 	-- Wjazd od lewej krawędzi. Ruch przyciąga wzrok skuteczniej niż samo
 	-- pojawienie się, a kierunek podpowiada, skąd komunikat „przyszedł".
@@ -162,14 +165,15 @@ function Toast.show(message: string, kind: string?)
 			Position = UDim2.fromOffset(0, 0),
 		})
 		:Play()
+	Theme.pop(frame, 0.7, 0.3)
 
 	task.delay(LIFETIME, function()
 		local info = TweenInfo.new(FADE, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
 		TweenService:Create(frame, info, { BackgroundTransparency = 1 }):Play()
 		TweenService:Create(label, info, { TextTransparency = 1 }):Play()
 		TweenService:Create(icon, info, { TextTransparency = 1, BackgroundTransparency = 1 }):Play()
-		if stroke then
-			TweenService:Create(stroke, info, { Transparency = 1 }):Play()
+		for _, outline in { stroke, iconStroke, labelStroke } do
+			TweenService:Create(outline, info, { Transparency = 1 }):Play()
 		end
 
 		task.delay(FADE, function()
