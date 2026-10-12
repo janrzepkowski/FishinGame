@@ -51,24 +51,35 @@ Zasady użycia:
 Cykl dnia i nocy to osobna funkcja na później — do tego czasu pora się nie
 zmienia.
 
-Wartości startowe dla fazy F2 (do sprawdzenia kamerami z `cameras.json`,
-nie do przyjęcia na wiarę):
+Wartości wdrożone w fazie F2, dobrane na zrzutach z kamer z `cameras.json`:
 
-| Właściwość | Teraz | Cel |
+| Właściwość | Przed | Teraz |
 |---|---|---|
-| `Lighting.ClockTime` | 15,5 | 17,3 |
+| `Lighting.ClockTime` | 15,5 | 17,5 |
 | `Lighting.Brightness` | 2,8 | 2,4 |
 | `Lighting.ShadowSoftness` | 0,35 | 0,2 |
-| `ColorCorrection.TintColor` | 255, 252, 246 | 255, 242, 224 |
-| `ColorCorrection.Saturation` | 0,14 | 0,20 |
+| `ColorCorrection.TintColor` | 255, 252, 246 | 255, 236, 210 |
+| `ColorCorrection.Saturation` | 0,14 | 0,12 |
 | `Atmosphere.Haze` | 1,1 | 0,6 |
 | `Atmosphere.Density` | 0,32 | 0,25 |
 | `Clouds` | brak | Cover 0,55, Density 0,6 |
 | `SunRaysEffect` | brak | Intensity 0,08, Spread 0,6 |
-| `Terrain.WaterColor` | 16, 94, 134 | 36, 156, 178 |
-| `Terrain.WaterReflectance` | 0,65 | 0,25 |
+| `Terrain.WaterColor` | 16, 94, 134 | 30, 136, 160 |
+| `Terrain.WaterReflectance` | 0,65 | 0,35 |
 | `Terrain.WaterTransparency` | 0,3 | 0,35 |
-| kolor materiału `Grass` w terenie | domyślny (oliwkowy) | `#62B04A` |
+| kolor materiału `Grass` w terenie | domyślny (oliwkowy) | 104, 150, 72 |
+
+Trzy rzeczy wyszły w praniu i warto je znać przed kolejnym strojeniem:
+
+- **Pora dnia ma wąskie okno.** Przy szerokości geograficznej 52° o 17,3
+  światło jest jeszcze dzienne, a o 17,8 jest już zmierzch. Złota godzina
+  to 17,5 i kilka minut w każdą stronę.
+- **Kolor wody i trawy w silniku nie równa się kolorowi z palety.** Silnik
+  rozjaśnia wodę światłem, a tekstura terenu podbija nasycenie trawy.
+  Paleta opisuje to, co gracz WIDZI; wartości wpisane w kod są ciemniejsze
+  i bardziej stonowane.
+- **Nasycenie obniżone, nie podniesione.** Przy +0,20 trawa i woda razem
+  robiły się neonowe.
 
 Fale zostają drobne (`WaterWaveSize` 0,15) — to decyzja rozgrywki, nie
 estetyki: przy większych spławik skacze i nie da się odczytać brania.

@@ -43,8 +43,8 @@
     "Lighting": {
       "$properties": {
         "Ambient": [0.117647, 0.133333, 0.168627],
-        "Brightness": 2.8,
-        "ClockTime": 15.5,
+        "Brightness": 2.4,
+        "ClockTime": 17.5,
         "EnvironmentDiffuseScale": 0.45,
         "EnvironmentSpecularScale": 0.35,
         "ExposureCompensation": 0.15,
@@ -52,7 +52,7 @@
         "GlobalShadows": true,
         "OutdoorAmbient": [0.447058, 0.498039, 0.564705],
         "Outlines": false,
-        "ShadowSoftness": 0.35,
+        "ShadowSoftness": 0.2,
         "Technology": "ShadowMap"
       },
 
@@ -61,9 +61,9 @@
         "$properties": {
           "Color": [0.788235, 0.819607, 0.862745],
           "Decay": [0.419607, 0.470588, 0.556862],
-          "Density": 0.32,
+          "Density": 0.25,
           "Glare": 0.25,
-          "Haze": 1.1,
+          "Haze": 0.6,
           "Offset": 0.2
         }
       },
@@ -77,13 +77,21 @@
         }
       },
 
+      "SunRays": {
+        "$className": "SunRaysEffect",
+        "$properties": {
+          "Intensity": 0.08,
+          "Spread": 0.6
+        }
+      },
+
       "Grade": {
         "$className": "ColorCorrectionEffect",
         "$properties": {
           "Brightness": 0.015,
           "Contrast": 0.09,
-          "Saturation": 0.14,
-          "TintColor": [1, 0.988235, 0.964705]
+          "Saturation": 0.12,
+          "TintColor": [1, 0.92549, 0.823529]
         }
       }
     },

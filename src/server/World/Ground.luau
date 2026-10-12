@@ -157,12 +157,39 @@ local function styleWater()
 	-- o kilka studów i nie da się odczytać, kiedy ryba bierze.
 	terrain.WaterWaveSize = 0.15
 	terrain.WaterWaveSpeed = 9
-	-- Wyższe odbicie i niższa przezroczystość niż na początku: przy 0.55
-	-- prześwitywało piaszczyste dno i woda czytała się jako muł.
-	-- Odbicie nieba jest tym, co odróżnia jezioro od kałuży.
-	terrain.WaterReflectance = 0.65
-	terrain.WaterTransparency = 0.3
-	terrain.WaterColor = Color3.fromRGB(16, 94, 134)
+	-- Odbicie pośrodku, i to z obu stron sprawdzone. Przy 0.65 tafla brała
+	-- kolor wprost z nieba i jezioro świeciło cyjanem jak basen. Przy 0.25
+	-- znikała faktura fal i woda robiła się płaską plamą farby.
+	terrain.WaterReflectance = 0.35
+	-- Nie wyżej: przy 0.55 prześwitywało piaszczyste dno i woda czytała
+	-- się jako muł.
+	terrain.WaterTransparency = 0.35
+	-- Ciemniejszy niż turkus z palety (docs/art/ART_DIRECTION.md): silnik
+	-- rozjaśnia wodę światłem, więc kolor z palety wprost dawał neon.
+	terrain.WaterColor = Color3.fromRGB(30, 136, 160)
+end
+
+--[[ Domyślna trawa terenu jest oliwkowa i gryzie się z nasyconymi stoiskami.
+     Wartość jest bardziej stonowana niż zieleń z palety
+     (docs/art/ART_DIRECTION.md), bo tekstura terenu i korekcja kolorów
+     podbijają nasycenie — hex z palety wprost wychodził jaskrawy. ]]
+local function styleLand()
+	Workspace.Terrain:SetMaterialColor(Enum.Material.Grass, Color3.fromRGB(104, 150, 72))
+end
+
+--[[
+	Chmury muszą być dzieckiem Terrain, więc powstają tutaj, a nie
+	w `default.project.json` obok reszty oświetlenia: Rojo nie dosynchronizuje
+	dziecka do istniejącego Terrain w otwartym Studio i chmury byłyby tylko
+	w pliku z `rojo build`.
+]]
+local function styleSky()
+	local terrain = Workspace.Terrain
+	local existing = terrain:FindFirstChildOfClass("Clouds")
+	local clouds = existing or Instance.new("Clouds")
+	clouds.Cover = 0.55
+	clouds.Density = 0.6
+	clouds.Parent = terrain
 end
 
 --[[
@@ -274,6 +301,8 @@ function Ground.build()
 	writeLakeVoxels()
 
 	styleWater()
+	styleLand()
+	styleSky()
 	reportDepths()
 end
 
