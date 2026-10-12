@@ -114,11 +114,18 @@ function CastPose.casting(elapsed: number, power: number): (number, number, numb
 		lerp(r1, HOLD_WRIST, t)
 end
 
---[[ Branie: szarpnięcie czubkiem i gasnące drganie — to samo, co robi
-     spławik, tylko po stronie wędki. ]]
+--[[
+	Branie: ręka STOI, drga tylko nadgarstek — i to ledwo.
+
+	Pierwsza wersja kołysała barkiem o 0,12 rad z częstotliwością 22 rad/s.
+	Bark niesie całą rękę i trzymetrowy kij, więc czubek wędki latał
+	w górę i w dół o ponad stud, przez dwie sekundy. Wyglądało to jak błąd
+	fizyki, nie jak ryba. Branie ma być widać po UGIĘCIU SZCZYTÓWKI
+	(`bend`) i po spławiku; ręka zostaje w miejscu.
+]]
 function CastPose.biting(elapsed: number): (number, number, number, number)
-	local wobble = math.sin(elapsed * 22) * 0.12 * math.exp(-elapsed * 1.5)
-	return HOLD_SHOULDER + wobble, HOLD_ELBOW, 0, HOLD_WRIST - 0.2 + wobble
+	local twitch = math.sin(elapsed * 14) * 0.03 * math.exp(-elapsed * 2.5)
+	return HOLD_SHOULDER, HOLD_ELBOW, 0, HOLD_WRIST - 0.1 + twitch
 end
 
 --[[
@@ -133,9 +140,11 @@ function CastPose.fighting(
 	surging: boolean
 ): (number, number, number, number)
 	local pull = math.clamp(tension, 0, 1)
-	local shake = if surging then math.sin(elapsed * 34) * 0.06 else 0
+	-- Drżenie idzie w nadgarstek, nie w bark: z barku przenosi się na cały
+	-- kij i zamienia zryw ryby w machanie wędką.
+	local shake = if surging then math.sin(elapsed * 18) * 0.035 else 0
 
-	return HOLD_SHOULDER + 0.55 * pull + shake,
+	return HOLD_SHOULDER + 0.55 * pull,
 		HOLD_ELBOW + 0.5 * pull,
 		-0.28 * pull,
 		HOLD_WRIST + 0.35 * pull + shake
@@ -160,12 +169,12 @@ function CastPose.bend(
 ): number
 	if phase == "Fighting" then
 		local pull = math.clamp(tension, 0, 1)
-		local shake = if surging then math.sin(elapsed * 34) * 0.08 else 0
+		local shake = if surging then math.sin(elapsed * 18) * 0.05 else 0
 		return 0.12 + 0.5 * pull + shake
 	elseif phase == "Biting" then
 		-- Ryba ciągnie, ale żyłka nie jest jeszcze napięta: wyraźne
 		-- przygięcie z gasnącym drganiem.
-		return 0.22 + math.sin(elapsed * 22) * 0.1 * math.exp(-elapsed * 1.5)
+		return 0.22 + math.sin(elapsed * 14) * 0.06 * math.exp(-elapsed * 2.5)
 	elseif phase == "Waiting" and elapsed < WHIP_TIME + SETTLE_TIME then
 		-- Wymach: kij spóźnia się za ręką i odgina w tył, potem wraca.
 		local t = elapsed / (WHIP_TIME + SETTLE_TIME)

@@ -26,6 +26,8 @@ local Cast = require(Shared.Util.Cast)
 local CastPose = require(Shared.Util.CastPose)
 local GameConfig = require(Shared.Config.Game)
 
+local Joints = require(script.Parent.Joints)
+
 local AnglerRig = {}
 
 --[[
@@ -72,34 +74,13 @@ local OFF_HAND_REACH = 1.3
 local OFF_HAND_AFTER_CAST = 0.5
 
 --[[
-	Staw postaci: klasyczny `Motor6D` albo nowy `AnimationConstraint`.
-
-	Roblox przenosi awatary na stawy oparte o więzy (`AnimationConstraint`
-	+ `BallSocketConstraint`) i część postaci NIE MA już `Motor6D` w rękach
-	ani w talii. Oba typy mają tę samą właściwość `Transform`, więc pozę
-	nakładamy tak samo. Sprawdzanie wyłącznie `Motor6D` — jak robił to
-	poprzedni kod zamachu — sprawiało, że na takich awatarach animacja po
-	cichu nie robiła nic.
+	Jak szybko poza dogania cel (1/s). Kąty z `CastPose` zmieniają się
+	skokiem przy każdej zmianie fazy, a napięcie w atrybucie przychodzi
+	schodkami co 5% — bez wygładzania ręka i kij przeskakiwałyby między
+	pozami. 20/s domyka różnicę w ok. 0,1 s: dość szybko, żeby wymach
+	został wymachem, i dość wolno, żeby nic nie szarpało.
 ]]
-local function pose(parent: Instance?, name: string, transform: CFrame): boolean
-	local found = parent and parent:FindFirstChild(name)
-	if not found then
-		return false
-	end
-
-	-- Dwie gałęzie zamiast unii typów: analiza zawęża wtedy `found` do
-	-- konkretnej klasy i pozwala pisać do `Transform` bez rzutowania.
-	if found:IsA("Motor6D") then
-		found.Transform = transform
-		return true
-	end
-
-	local constraint = if found:IsA("AnimationConstraint") then found else nil
-	if constraint then
-		constraint.Transform = transform
-	end
-	return constraint ~= nil
-end
+local POSE_FOLLOW = 20
 
 --[[ Nakłada cztery kąty na stawy ręki z wędką i talię. ]]
 local function applyPose(
@@ -110,12 +91,12 @@ local function applyPose(
 	wrist: CFrame
 )
 	-- R6 trzyma bark w `Torso` pod nazwą ze spacją i nie ma pozostałych stawów.
-	if not pose(character:FindFirstChild("RightUpperArm"), "RightShoulder", shoulder) then
-		pose(character:FindFirstChild("Torso"), "Right Shoulder", shoulder)
+	if not Joints.pose(character:FindFirstChild("RightUpperArm"), "RightShoulder", shoulder) then
+		Joints.pose(character:FindFirstChild("Torso"), "Right Shoulder", shoulder)
 	end
-	pose(character:FindFirstChild("RightLowerArm"), "RightElbow", elbow)
-	pose(character:FindFirstChild("UpperTorso"), "Waist", waist)
-	pose(character:FindFirstChild("RightHand"), "RightWrist", wrist)
+	Joints.pose(character:FindFirstChild("RightLowerArm"), "RightElbow", elbow)
+	Joints.pose(character:FindFirstChild("UpperTorso"), "Waist", waist)
+	Joints.pose(character:FindFirstChild("RightHand"), "RightWrist", wrist)
 end
 
 local function heldRod(character: Model): Tool?
@@ -129,6 +110,11 @@ function AnglerRig.new(character: Model): Rig
 	-- Czy w poprzedniej klatce nadpisywaliśmy stawy — żeby przy powrocie do
 	-- `Idle` wyzerować je dokładnie raz, a potem zostawić postać w spokoju.
 	local posed = false
+
+	-- Kąty faktycznie nałożone w poprzedniej klatce (bark, łokieć, talia,
+	-- nadgarstek, ugięcie kija) — punkt wyjścia do wygładzania.
+	local shownShoulder, shownElbow, shownWaist, shownWrist, shownBend = 0, 0, 0, 0, 0
+	local lastUpdate = os.clock()
 
 	local ik: IKControl? = nil
 	local offHand: Attachment? = nil
@@ -271,9 +257,13 @@ function AnglerRig.new(character: Model): Rig
 		local tool = heldRod(character)
 		local phase = state.phase
 
+		local delta = math.clamp(now - lastUpdate, 0, 0.1)
+		lastUpdate = now
+
 		if phase == "Idle" or not tool then
 			if posed then
 				posed = false
+				shownShoulder, shownElbow, shownWaist, shownWrist, shownBend = 0, 0, 0, 0, 0
 				resetJoints()
 				setOffHand(nil, false)
 				bendRod(tool, 0)
@@ -305,18 +295,35 @@ function AnglerRig.new(character: Model): Rig
 				CastPose.fighting(elapsed, state.tension, state.surging)
 		end
 
-		posed = true
+		local bendAngle = CastPose.bend(phase, elapsed, state.power, state.tension, state.surging)
+
+		if not posed then
+			-- Pierwsza klatka po `Idle`: startujemy od pozy trzymania
+			-- narzędzia, którą Animator właśnie pokazywał, a nie od ręki
+			-- w dół — inaczej zamach zaczynałby się od opadnięcia ramienia.
+			posed = true
+			shownShoulder, shownElbow, shownWaist, shownWrist = CastPose.casting(math.huge, 0)
+			shownBend = 0
+		end
+
+		-- Wygładzanie wykładnicze, niezależne od liczby klatek.
+		local alpha = 1 - math.exp(-POSE_FOLLOW * delta)
+		shownShoulder += (shoulderAngle - shownShoulder) * alpha
+		shownElbow += (elbowAngle - shownElbow) * alpha
+		shownWaist += (waistAngle - shownWaist) * alpha
+		shownWrist += (wristAngle - shownWrist) * alpha
+		shownBend += (bendAngle - shownBend) * alpha
 
 		applyPose(
 			character,
-			CFrame.fromAxisAngle(SWING_AXIS, shoulderAngle),
-			CFrame.Angles(elbowAngle, 0, 0),
-			CFrame.Angles(waistAngle, 0, 0),
-			CFrame.Angles(wristAngle, 0, 0)
+			CFrame.fromAxisAngle(SWING_AXIS, shownShoulder),
+			CFrame.Angles(shownElbow, 0, 0),
+			CFrame.Angles(shownWaist, 0, 0),
+			CFrame.Angles(shownWrist, 0, 0)
 		)
 
 		setOffHand(tool, twoHanded)
-		bendRod(tool, CastPose.bend(phase, elapsed, state.power, state.tension, state.surging))
+		bendRod(tool, shownBend)
 	end
 
 	function self.destroy()

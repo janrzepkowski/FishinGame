@@ -21,6 +21,7 @@
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
 local TextChatService = game:GetService("TextChatService")
 
@@ -29,6 +30,8 @@ local GameConfig = require(Shared.Config.Game)
 local Net = require(Shared.Net)
 local NpcConfig = require(Shared.Config.Npc)
 local Spatial = require(Shared.Util.Spatial)
+
+local Joints = require(script.Parent.Parent.Effects.Joints)
 
 local NpcController = {}
 
@@ -40,6 +43,15 @@ local GREET_COOLDOWN = 40
 local VOICE_DISTANCE = 30
 local CHECK_INTERVAL = 0.5
 
+-- Sprzedawca wodzi wzrokiem za graczem z tej odległości; dalej patrzy
+-- przed siebie. Kąty w radianach: ile głowa może się obrócić i pochylić.
+local LOOK_DISTANCE = 26
+local LOOK_YAW = 1.1
+local LOOK_PITCH = 0.35
+-- Jak szybko głowa dogania cel (1/s). Wolno: człowiek nie obraca głowy
+-- jak kamera przemysłowa.
+local LOOK_FOLLOW = 5
+
 local player = Players.LocalPlayer
 local generator = Random.new()
 
@@ -50,6 +62,9 @@ local voices: { [string]: { [string]: AudioTextToSpeech } } = {}
 local lastGreetAt: { [string]: number } = {}
 local wasNear: { [string]: boolean } = {}
 local voiceWarned = false
+-- Bieżący obrót głowy każdego sprzedawcy (yaw, pitch) — do wygładzania.
+local headYaw: { [Model]: number } = {}
+local headPitch: { [Model]: number } = {}
 
 local function findNpc(standKind: string): Model?
 	for _, tagged in CollectionService:GetTagged(GameConfig.NPC_TAG) do
@@ -192,6 +207,50 @@ local function checkGreetings()
 	end
 end
 
+--[[
+	Życie w postaci: sprzedawca oddycha i wodzi głową za graczem.
+
+	Stojący nieruchomo manekin za ladą był największą różnicą między
+	„postacią" a „dekoracją". Dwa stawy wystarczą: talia (oddech) i szyja
+	(spojrzenie). Zapis w `PreSimulation` — patrz `Effects/Joints`.
+]]
+local function animate(delta: number)
+	local position = Spatial.characterPosition(player)
+	local now = os.clock()
+	local alpha = 1 - math.exp(-LOOK_FOLLOW * delta)
+
+	for _, tagged in CollectionService:GetTagged(GameConfig.NPC_TAG) do
+		if not tagged:IsA("Model") then
+			continue
+		end
+
+		local head = tagged:FindFirstChild("Head")
+		local torso = tagged:FindFirstChild("UpperTorso")
+		if not (head and torso and torso:IsA("BasePart")) then
+			continue
+		end
+
+		local targetYaw, targetPitch = 0, 0
+		if position and (position - torso.Position).Magnitude <= LOOK_DISTANCE then
+			-- Kierunek do gracza w układzie tułowia: przód to -Z.
+			local toPlayer = torso.CFrame:PointToObjectSpace(position + Vector3.new(0, 1.5, 0))
+			targetYaw = math.clamp(math.atan2(-toPlayer.X, -toPlayer.Z), -LOOK_YAW, LOOK_YAW)
+			local flat = math.sqrt(toPlayer.X * toPlayer.X + toPlayer.Z * toPlayer.Z)
+			targetPitch = math.clamp(math.atan2(toPlayer.Y, flat), -LOOK_PITCH, LOOK_PITCH)
+		end
+
+		local yaw = (headYaw[tagged] or 0) + (targetYaw - (headYaw[tagged] or 0)) * alpha
+		local pitch = (headPitch[tagged] or 0) + (targetPitch - (headPitch[tagged] or 0)) * alpha
+		headYaw[tagged] = yaw
+		headPitch[tagged] = pitch
+
+		Joints.pose(head, "Neck", CFrame.Angles(pitch, yaw, 0))
+		-- Oddech: ledwie widoczne kołysanie tułowia, u każdego w innej fazie.
+		local breath = math.sin(now * 1.5 + tagged:GetPivot().Position.X) * 0.018
+		Joints.pose(torso, "Waist", CFrame.Angles(breath, 0, 0))
+	end
+end
+
 function NpcController.start()
 	Net.NpcLine.OnClientEvent:Connect(function(standKind: unknown, key: unknown)
 		if typeof(standKind) == "string" and typeof(key) == "string" then
@@ -203,6 +262,15 @@ function NpcController.start()
 		while true do
 			task.wait(CHECK_INTERVAL)
 			checkGreetings()
+		end
+	end)
+
+	RunService.PreSimulation:Connect(animate)
+	-- Sprzedawca, który wyjechał ze streamingu, nie może zostać w tabelach.
+	CollectionService:GetInstanceRemovedSignal(GameConfig.NPC_TAG):Connect(function(removed)
+		if removed:IsA("Model") then
+			headYaw[removed] = nil
+			headPitch[removed] = nil
 		end
 	end)
 end

@@ -29,7 +29,15 @@ export type Definition = {
 	skin: Color3,
 	shirt: Color3,
 	pants: Color3,
-	hat: Color3,
+	-- Elementy sylwetki. Każdy jest opcjonalny: `nil` znaczy „nie ma".
+	-- To one odróżniają sprzedawców od siebie i od manekina.
+	hat: Color3?,
+	longHair: Color3?,
+	apron: Color3?,
+	-- Proporcje awatara (1 = domyślne). Dwie postacie o identycznej
+	-- budowie wyglądają jak klony w różnych koszulkach.
+	height: number,
+	width: number,
 	-- Głos syntezatora i przesunięcie wysokości w półtonach.
 	voiceId: string,
 	pitch: number,
@@ -40,11 +48,15 @@ export type Definition = {
 
 local DEFINITIONS: { [string]: Definition } = {
 	[GameConfig.STAND_FISH_BUYER] = {
-		displayName = "Stary Bronek",
+		displayName = "Orzeł",
 		skin = Color3.fromRGB(226, 178, 140),
 		shirt = Color3.fromRGB(86, 164, 128),
 		pants = Color3.fromRGB(104, 76, 50),
 		hat = Color3.fromRGB(216, 190, 120),
+		-- Fartuch rybaka: od razu widać, kto tu waży i skupuje.
+		apron = Color3.fromRGB(64, 72, 84),
+		height = 1.06,
+		width = 1.12,
 		-- Lista głosów: docs Robloxa „List of artificial voices".
 		-- 5 = męski, 2 = żeński.
 		voiceId = "5",
@@ -69,11 +81,13 @@ local DEFINITIONS: { [string]: Definition } = {
 		},
 	},
 	[GameConfig.STAND_ROD_SHOP] = {
-		displayName = "Pani Halina",
+		displayName = "Jadwiga Hymel",
 		skin = Color3.fromRGB(240, 196, 160),
 		shirt = Color3.fromRGB(206, 152, 74),
 		pants = Color3.fromRGB(78, 84, 96),
-		hat = Color3.fromRGB(154, 114, 74),
+		longHair = Color3.fromRGB(96, 60, 38),
+		height = 0.98,
+		width = 0.94,
 		voiceId = "2",
 		pitch = 2,
 		shouts = { "Aha!", "O!", "Mhm, mhm.", "Ho ho!" },

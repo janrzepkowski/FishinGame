@@ -27,10 +27,18 @@ local LakeLife = {}
 
 local CONTAINER_NAME = "LakeLife"
 
-local SCHOOL_COUNT = 9
+local SCHOOL_COUNT = 14
 local FISH_PER_SCHOOL = 6
--- Ławice pływają tylko tam, gdzie jest na nie miejsce w pionie.
-local MIN_SCHOOL_DEPTH = 16
+-- Ławice pływają wszędzie, gdzie jest woda — także na najpłytszej półce
+-- przy brzegu, bo to tam gracz wchodzi do jeziora.
+local MIN_SCHOOL_DEPTH = 8
+
+-- Gdy gracz jest w wodzie, co tyle sekund najdalsza ławica przenosi się
+-- w jego pobliże. Jezioro ma 200 studów średnicy: bez tego pływak mógłby
+-- przepłynąć je całe i nie spotkać ani jednej ryby.
+local FOLLOW_INTERVAL = 3
+local FOLLOW_NEAR = 14
+local FOLLOW_FAR = 26
 -- Dalej niż tyle od brzegu jeziora ławic i tak nie widać.
 local ACTIVE_MARGIN = 140
 
@@ -129,19 +137,26 @@ local function pointOverWater(minDepth: number): (number?, number?)
 	return nil, nil
 end
 
+--[[ Wysokość ławicy: w górnej połowie toni, gdzie widać ją także znad
+     wody, ale zawsze z zapasem nad dnem (dno leży 2 study ponad wypełnieniem
+     terenu — patrz `Ground`). ]]
+local function schoolY(depth: number): number
+	local deepest = math.max(depth * 0.5, 3.5)
+	return LakeConfig.SURFACE_Y - generator:NextNumber(2.5, math.max(deepest, 2.6))
+end
+
 local function buildSchools()
 	for _ = 1, SCHOOL_COUNT do
 		local x, z = pointOverWater(MIN_SCHOOL_DEPTH)
 		if x and z then
 			local depth = LakeConfig.depthAt(Vector3.new(x, 0, z))
 			local color = FISH_COLORS[generator:NextInteger(1, #FISH_COLORS)]
-			local scale = generator:NextNumber(0.8, 1.5)
+			local scale = generator:NextNumber(1, 2.1)
 
 			local school: School = {
 				centerX = x,
 				centerZ = z,
-				-- W górnej połowie toni: tam ławicę widać także znad wody.
-				y = LakeConfig.SURFACE_Y - generator:NextNumber(2.5, math.max(depth * 0.5, 4)),
+				y = schoolY(depth),
 				speed = generator:NextNumber(0.25, 0.5)
 					* (if generator:NextNumber() < 0.5 then 1 else -1),
 				fish = {},
@@ -266,6 +281,54 @@ local function jump()
 	end)
 end
 
+--[[
+	Ryby tam, gdzie pływa gracz.
+
+	Gdy kamera jest nad wodą, najdalsza ławica przenosi się w pobliże —
+	poza zasięg wzroku pod wodą, żeby wpłynęła w kadr, a nie w nim wyskoczyła.
+]]
+local function gatherNearSwimmer()
+	local camera = Workspace.CurrentCamera
+	if not camera then
+		return
+	end
+
+	local origin = camera.Focus.Position
+	if LakeConfig.depthAt(origin) <= 0 then
+		return
+	end
+
+	local farthest: School? = nil
+	local farthestDistance = FOLLOW_FAR
+	for _, school in schools do
+		local dx = school.centerX - origin.X
+		local dz = school.centerZ - origin.Z
+		local distance = math.sqrt(dx * dx + dz * dz)
+		if distance > farthestDistance then
+			farthest = school
+			farthestDistance = distance
+		end
+	end
+
+	if not farthest then
+		return
+	end
+
+	for _ = 1, 12 do
+		local angle = generator:NextNumber(0, math.pi * 2)
+		local distance = generator:NextNumber(FOLLOW_NEAR, FOLLOW_FAR)
+		local x = origin.X + math.cos(angle) * distance
+		local z = origin.Z + math.sin(angle) * distance
+		local depth = LakeConfig.depthAt(Vector3.new(x, 0, z))
+		if depth >= MIN_SCHOOL_DEPTH then
+			farthest.centerX = x
+			farthest.centerZ = z
+			farthest.y = schoolY(depth)
+			return
+		end
+	end
+end
+
 function LakeLife.start()
 	if started then
 		return
@@ -274,6 +337,13 @@ function LakeLife.start()
 
 	buildSchools()
 	RunService.RenderStepped:Connect(updateSchools)
+
+	task.spawn(function()
+		while true do
+			task.wait(FOLLOW_INTERVAL)
+			gatherNearSwimmer()
+		end
+	end)
 
 	task.spawn(function()
 		while true do

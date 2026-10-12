@@ -474,6 +474,31 @@ for step = 0, 40 do
 end
 t.isTrue("katy stawow zostaja w rozsadnym zakresie", sane)
 
+--[[
+	Branie nie może machać wędką. Bark niesie całą rękę i kij, więc każde
+	jego drgnięcie mnoży się na czubku przez kilka studów długości —
+	dokładnie ten błąd tu był. Ręka ma stać; ruch należy do szczytówki.
+]]
+local biteShoulderMin, biteShoulderMax = math.huge, -math.huge
+local biteWristMin, biteWristMax = math.huge, -math.huge
+for step = 0, 200 do
+	local shoulder, _, _, wrist = CastPose.biting(step * 0.01)
+	biteShoulderMin = math.min(biteShoulderMin, shoulder)
+	biteShoulderMax = math.max(biteShoulderMax, shoulder)
+	biteWristMin = math.min(biteWristMin, wrist)
+	biteWristMax = math.max(biteWristMax, wrist)
+end
+t.near("przy braniu bark stoi w miejscu", biteShoulderMax - biteShoulderMin, 0)
+t.isTrue("przy braniu nadgarstek ledwo drga", biteWristMax - biteWristMin < 0.08)
+
+local surgeShoulderMin, surgeShoulderMax = math.huge, -math.huge
+for step = 0, 200 do
+	local shoulder = CastPose.fighting(step * 0.01, 0.5, true)
+	surgeShoulderMin = math.min(surgeShoulderMin, shoulder)
+	surgeShoulderMax = math.max(surgeShoulderMax, shoulder)
+end
+t.near("szarpniecie ryby nie macha barkiem", surgeShoulderMax - surgeShoulderMin, 0)
+
 --[[ Ugięcie kija. ]]
 t.near("kij bez akcji jest prosty", CastPose.bend("Idle", 1, 1, 1, true), 0)
 t.near("po rzucie kij sie prostuje", CastPose.bend("Waiting", 5, 1, 0, false), 0)

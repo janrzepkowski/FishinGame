@@ -26,13 +26,25 @@ local Build = require(script.Parent.Build)
 
 local Npc = {}
 
---[[ Kapelusz z dwóch brył, przyspawany do głowy. Bez niego dwie postacie
-     w jednolitych kolorach wyglądają jak manekiny; z nim od razu widać,
-     że to wędkarz i sklepowa, a nie gracze, którzy zamarli. ]]
+--[[ Przyspawa bryły do części ciała. `Build` kotwiczy części, a dodatki
+     mają jechać z postacią. ]]
+local function attach(anchor: BasePart, pieces: { BasePart })
+	for _, piece in pieces do
+		piece.Anchored = false
+		piece.Massless = true
+
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = anchor
+		weld.Part1 = piece
+		weld.Parent = piece
+	end
+end
+
+--[[ Kapelusz z dwóch brył: rondo i główka. ]]
 local function addHat(model: Model, head: BasePart, color: Color3)
 	local top = head.CFrame * CFrame.new(0, head.Size.Y / 2, 0)
 
-	local pieces = {
+	attach(head, {
 		Build.cylinder(model, {
 			Name = "HatBrim",
 			Size = Vector3.new(0.18, 2.6, 2.6),
@@ -48,18 +60,70 @@ local function addHat(model: Model, head: BasePart, color: Color3)
 			Color = color,
 			Material = Enum.Material.Fabric,
 		}),
-	}
+	})
+end
 
-	for _, piece in pieces do
-		-- `Build` kotwiczy części; kapelusz ma jechać z głową.
-		piece.Anchored = false
-		piece.Massless = true
+--[[
+	Długie włosy: czapa na czubku, kurtyna na plecy i dwa pasma po bokach
+	twarzy.
 
-		local weld = Instance.new("WeldConstraint")
-		weld.Part0 = head
-		weld.Part1 = piece
-		weld.Parent = piece
+	Z brył, a nie z akcesorium z katalogu: akcesorium to asset o numerze,
+	którego nie da się sprawdzić z repozytorium i który może zniknąć.
+	Przód postaci to -Z, więc „z tyłu głowy" znaczy +Z.
+]]
+local function addLongHair(model: Model, head: BasePart, color: Color3)
+	local size = head.Size
+	local dark = color:Lerp(Color3.new(0, 0, 0), 0.18)
+
+	attach(head, {
+		Build.block(model, {
+			Name = "HairTop",
+			Size = Vector3.new(size.X * 1.08, size.Y * 0.42, size.Z * 1.1),
+			CFrame = head.CFrame * CFrame.new(0, size.Y * 0.36, 0.04),
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+		}),
+		-- Kurtyna sięga do połowy pleców.
+		Build.block(model, {
+			Name = "HairBack",
+			Size = Vector3.new(size.X * 1.04, size.Y * 2.1, 0.34),
+			CFrame = head.CFrame * CFrame.new(0, -size.Y * 0.62, size.Z * 0.52),
+			Color = dark,
+			Material = Enum.Material.SmoothPlastic,
+		}),
+		Build.block(model, {
+			Name = "HairLeft",
+			Size = Vector3.new(0.26, size.Y * 1.7, size.Z * 0.78),
+			CFrame = head.CFrame * CFrame.new(-size.X * 0.54, -size.Y * 0.42, 0.18),
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+		}),
+		Build.block(model, {
+			Name = "HairRight",
+			Size = Vector3.new(0.26, size.Y * 1.7, size.Z * 0.78),
+			CFrame = head.CFrame * CFrame.new(size.X * 0.54, -size.Y * 0.42, 0.18),
+			Color = color,
+			Material = Enum.Material.SmoothPlastic,
+		}),
+	})
+end
+
+--[[ Fartuch: płat materiału na przodzie tułowia, sięgający za pas. ]]
+local function addApron(model: Model, color: Color3)
+	local torso = model:FindFirstChild("UpperTorso")
+	if not torso or not torso:IsA("BasePart") then
+		return
 	end
+
+	attach(torso, {
+		Build.block(model, {
+			Name = "Apron",
+			Size = Vector3.new(torso.Size.X * 0.92, torso.Size.Y * 1.7, 0.14),
+			CFrame = torso.CFrame * CFrame.new(0, -torso.Size.Y * 0.38, -torso.Size.Z / 2 - 0.08),
+			Color = color,
+			Material = Enum.Material.Fabric,
+		}),
+	})
 end
 
 --[[
@@ -80,6 +144,9 @@ function Npc.spawn(parent: Instance, feet: CFrame, standKind: string)
 		description.TorsoColor = definition.shirt
 		description.LeftLegColor = definition.pants
 		description.RightLegColor = definition.pants
+		description.HeightScale = definition.height
+		description.WidthScale = definition.width
+		description.DepthScale = definition.width
 
 		local ok, result = pcall(function()
 			return Players:CreateHumanoidModelFromDescriptionAsync(
@@ -126,7 +193,15 @@ function Npc.spawn(parent: Instance, feet: CFrame, standKind: string)
 		end
 
 		model:PivotTo(feet * CFrame.new(0, humanoid.HipHeight + root.Size.Y / 2, 0))
-		addHat(model, head, definition.hat)
+		if definition.hat then
+			addHat(model, head, definition.hat)
+		end
+		if definition.longHair then
+			addLongHair(model, head, definition.longHair)
+		end
+		if definition.apron then
+			addApron(model, definition.apron)
+		end
 
 		model:SetAttribute(GameConfig.NPC_ATTRIBUTE, standKind)
 		model:AddTag(GameConfig.NPC_TAG)
