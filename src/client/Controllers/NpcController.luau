@@ -8,14 +8,14 @@
 	  * reakcję na transakcję ogłasza SERWER (`Net.NpcLine`), bo tylko on wie,
 	    czy sprzedaż albo zakup naprawdę przeszły.
 
-	Dymek to wbudowany czat dymkowy Robloxa (`TextChatService:DisplayBubble`)
-	— wygląda jak wypowiedź gracza i nie wymaga własnego UI. Głos generuje
-	syntezator mowy (`AudioTextToSpeech`); bez żadnego pliku dźwiękowego.
+	Dymek rysuje `UI/SpeechBubble` — własny, zawsze na wierzchu, bo
+	wbudowany czat dymkowy Robloxa chował się za szyldem i markizą stoiska.
+	Głos generuje syntezator mowy (`AudioTextToSpeech`); bez żadnego pliku
+	dźwiękowego.
 
-	WSZYSTKO TU JEST OPCJONALNE. Syntezator ma limity zapytań i potrafi
-	zawieść, czat dymkowy może być wyłączony w ustawieniach gry. Każde
-	wywołanie jest w `pcall`: sprzedawca, który milczy, nie może zepsuć
-	sklepu.
+	GŁOS JEST OPCJONALNY. Syntezator ma limity zapytań i potrafi zawieść,
+	więc jego wywołania są osłonięte: sprzedawca, który milczy, nie może
+	zepsuć sklepu.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -23,7 +23,6 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local SoundService = game:GetService("SoundService")
-local TextChatService = game:GetService("TextChatService")
 
 local Shared = ReplicatedStorage:WaitForChild("Shared")
 local GameConfig = require(Shared.Config.Game)
@@ -32,6 +31,7 @@ local NpcConfig = require(Shared.Config.Npc)
 local Spatial = require(Shared.Util.Spatial)
 
 local Joints = require(script.Parent.Parent.Effects.Joints)
+local SpeechBubble = require(script.Parent.Parent.UI.SpeechBubble)
 
 local NpcController = {}
 
@@ -51,6 +51,8 @@ local LOOK_PITCH = 0.35
 -- Jak szybko głowa dogania cel (1/s). Wolno: człowiek nie obraca głowy
 -- jak kamera przemysłowa.
 local LOOK_FOLLOW = 5
+-- Jak długo wisi dymek: dość, żeby przeczytać zdanie, idąc.
+local BUBBLE_TIME = 4.5
 
 local player = Players.LocalPlayer
 local generator = Random.new()
@@ -171,11 +173,9 @@ local function say(standKind: string, key: string)
 	end
 
 	local head = model:FindFirstChild("Head")
-	if head then
+	if head and head:IsA("BasePart") then
 		local line = options[generator:NextInteger(1, #options)]
-		pcall(function()
-			TextChatService:DisplayBubble(head, line)
-		end)
+		SpeechBubble.show(head, definition.displayName, line, BUBBLE_TIME)
 	end
 
 	local distance = distanceTo(model)

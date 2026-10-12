@@ -638,9 +638,10 @@ Kwestie mają dwa źródła. Powitanie wybiera klient, gdy gracz podejdzie.
 Reakcję na transakcję ogłasza serwer przez `Net.NpcLine`, bo tylko on wie,
 czy sprzedaż przeszła — i wysyła **klucz sytuacji**, nie tekst.
 
-`client/Controllers/NpcController.luau` pokazuje kwestię wbudowanym czatem
-dymkowym (`TextChatService:DisplayBubble`) i odtwarza krótki okrzyk z
-syntezatora mowy (`AudioTextToSpeech`). Okrzyk, a nie całe zdanie, bo
+`client/Controllers/NpcController.luau` pokazuje kwestię własnym dymkiem
+(`UI/SpeechBubble`, zawsze na wierzchu — wbudowany czat dymkowy chował się
+za szyldem stoiska) i odtwarza krótki okrzyk z syntezatora mowy
+(`AudioTextToSpeech`). Sprzedawca wodzi też głową za graczem i oddycha. Okrzyk, a nie całe zdanie, bo
 syntezator nie obsługuje polskiego. Każdy okrzyk generujemy raz i gramy
 z pamięci: limit zapytań liczy się od generowania, nie od odtworzeń.
 
