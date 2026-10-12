@@ -442,7 +442,8 @@ nasunęłaby na niego komunikaty i nikt nie wiedziałby, który plik poprawić.
 | Komunikaty | lewa krawędź, nad paskiem łowienia | to samo, podniesione nad drążek |
 | Pasek łowienia | **lewy dolny róg** | to samo, nad drążkiem ruchu |
 | Slot wędki | dół, wyśrodkowany | dół, wyśrodkowany |
-| Ekwipunek | kolumna z prawej | arkusz przyklejony do dołu |
+| Ekwipunek | siatka kart, kolumna z prawej | arkusz przyklejony do dołu |
+| Baner nagrody | górny środek, ~3 s | to samo, mniejszy |
 | Sklep / dziennik | okno wyśrodkowane | prawie pełny ekran |
 
 Mapa zajętości ekranu (Roblox nie dokumentuje pozycji CoreGui, trzeba ją
@@ -450,6 +451,7 @@ znać z praktyki):
 
 ```
 góra-lewo    czat Robloxa           + nasz HUD
+góra-środek  wolne                  -> baner nagrody (chwilowy)
 góra-prawo   lista graczy
 dół-środek   pasek narzędzi         + nasz slot wędki
 dół-prawo    skok (mobile)          + nasze przyciski dotykowe
@@ -552,6 +554,82 @@ Logujemy zdarzenia **kończące etap pętli**, nie każde zarzucenie: lejek
 `cast → hooked → landed → sold` odpowiada na pytanie „gdzie gracze odpadają".
 Jeśli walka zabija 60% sesji, widać to w danych, a nie w domysłach.
 
+## Styl: cukierkowy, dla dzieci
+
+Referencją są topowe gry Robloxa dla dzieci (symulatory, „pet" UI).
+Wcześniejszy ciemny, „profesjonalny" motyw wyglądał jak narzędzie do pracy.
+
+**Interfejs** (`client/UI/Theme`):
+
+- jasne karty (`COLOR.panel` jest biały) z grubym granatowym obrysem
+  `Theme.OUTLINE` — kontur jak w kreskówce,
+- `Theme.header` — kolorowy nagłówek okna; kolor mówi, co to za okno
+  (niebieski połów, zielony sklep, fioletowy dziennik),
+- przyciski z `Theme.candyGradient` (jasna góra, ciemna „warga" na dole)
+  i uginaniem pod palcem,
+- FredokaOne w tytułach, biały tekst z obrysem (`Theme.outline`),
+- `Theme.pop` / `Theme.bump` / `Theme.shine` — wyskok okien i nagród,
+  podskok licznika monet, połysk na kartach epickich i legendarnych.
+
+Klucze palety zostały te same, więc ekrany nie musiały przepisywać kolorów.
+Zmienił się tylko kontrast: panel jest jasny, więc `text` jest ciemny,
+a `textInverse` (napis na kolorowym przycisku) biały. Złoto jako tekst
+na białym ginie — do napisów jest `coinText`.
+
+Jedna pułapka: UIStroke na obiekcie, który już ma UIStroke ramki, nie
+zostanie narysowany. Dlatego ikony i przyciski obrysowują litery starym
+`TextStroke`, a `Theme.outline` jest tylko dla etykiet bez ramki.
+
+**Mapa** (`server/World`): `SmoothPlastic`, nasycone kolory, zaokrąglone
+bryły. `Build.ellipsoid` to Part ze `SpecialMesh` typu Sphere — `Shape = Ball`
+wymusza równe wymiary, więc wcześniejsze „spłaszczone" korony drzew i tak
+były kulami. Plac ma okrągły dywan i spawn, girlandy i balony, dachy stoisk
+w kolorach stoisk, a na ladzie skupu leżą prawdziwe modele ryb.
+
+## Modele ryb
+
+`shared/Util/FishModel` opisuje rybę jako listę brył (jak `RodModel` wędkę).
+Wygląd gatunku to `color` + opcjonalny `look` w `Config/Fish`
+(sylwetka, wzór, płetwy, brzuch, wąsy, iskry). Gatunek bez `look` dostaje
+okrągłą rybkę w swoim kolorze, więc nowa ryba nadal wymaga wyłącznie
+wpisu w katalogu.
+
+Z jednego opisu korzystają: karta w ekwipunku i bestiariuszu
+(`UI/FishCard`), podgląd na pasku wyniku, baner nagrody, ryba wyskakująca
+z wody i lada w skupie. Niezłowiony gatunek to ciemna sylwetka bez twarzy,
+ale z nazwą — lista celów działa tylko wtedy, gdy wiadomo, co na niej jest.
+
+## Nagrody: wyskok ryby i „kasyno"
+
+Po `CastResult` z „Caught" klient (`Effects/CatchShowcase`):
+
+```
+0,00 s  ryba wyskakuje ze spławika po łuku, salto, plusk
+0,75 s  zawisa nad graczem, macha ogonem, kontur w kolorze rzadkości,
+        iskry + konfetti  ──> Celebration.catch (baner)
+2,35 s  maleje i wpada do gracza
+```
+
+`UI/Celebration` pokazuje baner w **górnym środku** z obracającymi się
+promieniami, mieniącym się tytułem, licznikiem ceny kręcącym się jak bęben
+automatu, gwiazdkami i deszczem konfetti. Poziom nagrody:
+
+```
+legenda > nowa rybka (newSpecies) > rekord > epicka > rzadka > perfekcja
+```
+
+Zwykła ryba bez niczego nie dostaje fanfar — inaczej nic by nie znaczyły.
+Ta sama warstwa robi deszcz monet lecących do licznika po sprzedaży
+i baner „NOWA WĘDKA!", licząc różnicę między kolejnymi snapshotami profilu
+(pierwszy snapshot tylko zapamiętuje — wejście do gry nie jest nagrodą).
+
+`CastResult.newSpecies` liczy serwer w tym samym `mutate`, co rekord.
+Pierwsza sztuka gatunku nie jest „rekordem" (12 fanfar na start), ale jest
+„nową rybką" — to inna nagroda i dostaje własny baner.
+
+Baner nie łamie zasady „środek dla rozgrywki": górny środek jest wolny na
+każdej platformie, warstwa ma `Active = false`, a całość znika po ~3 s.
+
 ## Interfejs: podglądy 3D zamiast obrazków
 
 Wędka w sklepie i na pasku to **`ViewportFrame` z tym samym modelem**, który
@@ -580,7 +658,8 @@ niespójną. Podajemy jeden kompletny `CFrame`.
 
 | Chcesz dodać | Idź do |
 |---|---|
-| nowy gatunek ryby | `shared/Config/Fish.luau` — i nic poza tym |
+| nowy gatunek ryby | `shared/Config/Fish.luau` — i nic poza tym (`look` opcjonalny) |
+| zmienić wygląd ryb | `shared/Util/FishModel.luau` — karty, wyskok i lada same się zaktualizują |
 | zmienić balans walki | `shared/Config/Game.luau` (sekcja walki) — i przelicz testy |
 | zmienić kształt wędki | `shared/Util/RodModel.luau` — model, sklep i pasek same się zaktualizują |
 | nowy tier wędki | `shared/Config/Rods.luau` |

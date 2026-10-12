@@ -19,7 +19,8 @@ Przy ustalaniu liczb trzymaj się tego, co już jest w pliku:
 - `minMass` / `maxMass` — realistyczne dla gatunku. Pamiętaj, że masa jest
   losowana z krzywą (`MASS_SKEW`), więc większość złowionych sztuk będzie
   blisko `minMass`.
-- `color` — `Color3.fromRGB`, kolor zbliżony do prawdziwej ryby
+- `color` — `Color3.fromRGB`, jaskrawy, cukierkowy kolor kojarzący się z gatunkiem
+- `look` — opcjonalny wygląd modelu (sylwetka, wzór, płetwy, brzuch), patrz `Types.FishLook`
 
 Po dodaniu:
 

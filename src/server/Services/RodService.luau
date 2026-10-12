@@ -78,7 +78,7 @@ local function buildRod(definition: RodDefinition): Tool
 	handle.Size = RodModel.handleSize()
 	handle.CFrame = CFrame.identity
 	handle.Color = RodModel.handleColor()
-	handle.Material = Enum.Material.Wood
+	handle.Material = Enum.Material.SmoothPlastic
 	handle.Anchored = false
 	handle.CanCollide = false
 	-- Bez tego kilka części wędki zaczyna ciągnąć postać w dół.

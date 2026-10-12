@@ -108,7 +108,7 @@ function Hotbar.mount(parent: Instance)
 		Size = UDim2.fromOffset(SLOT, SLOT),
 		BackgroundColor3 = Theme.COLOR.panel,
 		Text = "",
-	}, Theme.stroke(Theme.COLOR.accent, 2), label)
+	}, Theme.stroke(Theme.COLOR.accent, Theme.OUTLINE + 1), label)
 
 	-- Kliknięcie w slot robi dokładnie to samo, co klawisz `1`. Logika
 	-- siedzi w `FishingController` — tutaj byłaby jej drugą kopią, która
@@ -174,7 +174,7 @@ function Hotbar.setEquipped(equipped: boolean)
 	local outline = holder:FindFirstChildOfClass("UIStroke")
 	if outline then
 		outline.Color = if equipped then Theme.COLOR.accent else Theme.COLOR.stroke
-		outline.Thickness = if equipped then 2 else 1
+		outline.Thickness = if equipped then Theme.OUTLINE + 1 else Theme.OUTLINE
 	end
 end
 

@@ -30,6 +30,7 @@ local Format = require(Shared.Util.Format)
 local GameConfig = require(Shared.Config.Game)
 local Types = require(Shared.Types)
 
+local FishCard = require(script.Parent.FishCard)
 local Theme = require(script.Parent.Theme)
 
 local CastMeter = {}
@@ -42,6 +43,9 @@ local PHONE_SIZE = Vector2.new(330, 136)
 local LERP_SPEED = 14
 
 local root: Frame? = nil
+local contentFrame: Frame? = nil
+-- Model złowionej ryby wystający nad kartę. Żyje do następnej zmiany stanu.
+local catchPreview: ViewportFrame? = nil
 local accentBar: Frame? = nil
 local titleLabel: TextLabel? = nil
 local hintLabel: TextLabel? = nil
@@ -76,10 +80,21 @@ local function stopRender()
 	biteStartedAt = nil
 end
 
+local function clearCatchPreview()
+	if catchPreview then
+		catchPreview:Destroy()
+		catchPreview = nil
+	end
+	if contentFrame then
+		contentFrame.Size = UDim2.new(1, -12, 1, 0)
+	end
+end
+
 local function beginState(accent: Color3): number
 	stopRender()
 	generation += 1
 	fighting = false
+	clearCatchPreview()
 
 	if accentBar then
 		accentBar.BackgroundColor3 = accent
@@ -117,41 +132,51 @@ function CastMeter.mount(parent: Instance)
 		TextXAlignment = Enum.TextXAlignment.Center,
 		Text = "",
 	})
+	-- Kolorowy tytuł z granatowym konturem — czyta się kątem oka na każdym
+	-- tle, także gdy gracz patrzy na wodę, a nie na pasek.
+	Theme.outline(title, Theme.COLOR.stroke, 2.5)
 
 	local hint = Theme.label({
 		Size = UDim2.new(1, 0, 0, 18),
 		LayoutOrder = 2,
+		Font = Theme.FONT_BOLD,
 		TextSize = Theme.TEXT.small,
 		TextColor3 = Theme.COLOR.textMuted,
 		TextXAlignment = Enum.TextXAlignment.Center,
+		RichText = true,
 		Text = "",
 	})
 
 	local track, fill = Theme.progress({
 		Name = "Progress",
-		Size = UDim2.new(1, 0, 0, 16),
+		Size = UDim2.new(1, 0, 0, 20),
 		LayoutOrder = 3,
 	}, Theme.COLOR.accent)
 
 	fill.Size = UDim2.fromScale(1, 1)
 
-	local zone = Theme.create("Frame", {
-		Name = "PerfectZone",
-		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.fromScale(1, 0),
-		Size = UDim2.fromScale(GameConfig.PERFECT_REEL_FRACTION, 1),
-		BackgroundColor3 = Theme.COLOR.success,
-		BackgroundTransparency = 0.5,
-		BorderSizePixel = 0,
-		ZIndex = 3,
-		Parent = track,
-	}, Theme.corner(Theme.RADIUS.sm), Theme.stroke(Theme.COLOR.success, 1)) :: Frame
+	local zone = Theme.create(
+		"Frame",
+		{
+			Name = "PerfectZone",
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.fromScale(1, 0),
+			Size = UDim2.fromScale(GameConfig.PERFECT_REEL_FRACTION, 1),
+			BackgroundColor3 = Theme.COLOR.success,
+			BackgroundTransparency = 0.45,
+			BorderSizePixel = 0,
+			ZIndex = 3,
+			Parent = track,
+		},
+		Theme.create("UICorner", { CornerRadius = UDim.new(0.5, 0) }),
+		Theme.stroke(Theme.COLOR.success, 2)
+	) :: Frame
 
 	-- Pasek napięcia z podpisem. Podpis jest konieczny: dwa paski jeden pod
 	-- drugim bez etykiet to zagadka, a gracz ma na nią pół sekundy.
 	local tensionTrack, tensionBar = Theme.progress({
 		Name = "TensionTrack",
-		Size = UDim2.new(1, -62, 0, 10),
+		Size = UDim2.new(1, -62, 0, 14),
 		Position = UDim2.fromOffset(62, 2),
 	}, Theme.COLOR.success)
 
@@ -165,7 +190,7 @@ function CastMeter.mount(parent: Instance)
 
 	local tension = Theme.create("Frame", {
 		Name = "Tension",
-		Size = UDim2.new(1, 0, 0, 14),
+		Size = UDim2.new(1, 0, 0, 18),
 		LayoutOrder = 4,
 		BackgroundTransparency = 1,
 		Visible = false,
@@ -186,6 +211,7 @@ function CastMeter.mount(parent: Instance)
 		Position = UDim2.fromOffset(12, 0),
 		BackgroundTransparency = 1,
 	}, Theme.list(Theme.SPACE.xs), title, hint, track, tension) :: Frame
+	contentFrame = content
 
 	-- Kotwica w LEWYM DOLNYM rogu. Wcześniej pasek stał na dole wyśrodkowany
 	-- i przy łowieniu zasłaniał dokładnie to, na co gracz patrzy — wodę
@@ -196,7 +222,6 @@ function CastMeter.mount(parent: Instance)
 		AnchorPoint = Vector2.new(0, 1),
 		Position = UDim2.new(0, Theme.SPACE.lg, 1, -Theme.SPACE.lg),
 		Size = UDim2.fromOffset(DESKTOP_SIZE.X, DESKTOP_SIZE.Y),
-		BackgroundTransparency = 0.06,
 		Visible = false,
 		Parent = parent,
 	}, Theme.padding(Theme.SPACE.md), bar, content)
@@ -221,11 +246,11 @@ function CastMeter.showWaiting()
 	setTensionVisible(false)
 
 	if titleLabel then
-		titleLabel.Text = "Zarzucono"
-		titleLabel.TextColor3 = Theme.COLOR.textMuted
+		titleLabel.Text = "Czekaj na branie…"
+		titleLabel.TextColor3 = Theme.COLOR.water
 	end
 	if hintLabel then
-		hintLabel.Text = "Czekaj na branie. Nie podcinaj za wcześnie."
+		hintLabel.Text = "Obserwuj spławik. Nie podcinaj za wcześnie!"
 	end
 	if progressFill then
 		progressFill.Size = UDim2.fromScale(0, 1)
@@ -246,6 +271,11 @@ function CastMeter.showBite(window: number)
 	if titleLabel then
 		titleLabel.Text = "PODETNIJ!"
 		titleLabel.TextColor3 = Theme.COLOR.warning
+	end
+	-- Branie to moment „teraz!" — karta podskakuje, żeby złapać wzrok
+	-- gracza nawet wtedy, gdy patrzy na spławik.
+	if root then
+		Theme.bump(root, 0.12)
 	end
 	if hintLabel then
 		hintLabel.Text = `Zielona strefa = bonus x{GameConfig.PERFECT_PRICE_BONUS} do ceny`
@@ -342,7 +372,7 @@ function CastMeter.updateFight(state: Types.FightState)
 	-- Szarpnięcie musi być widoczne JEDNYM spojrzeniem — gracz ma na
 	-- reakcję ułamek sekundy i nie zdąży odczytać tempa przyrostu paska.
 	if titleLabel then
-		titleLabel.Text = if surging then "PUŚĆ!" else "HOLUJ"
+		titleLabel.Text = if surging then "PUŚĆ!" else "HOLUJ!"
 		titleLabel.TextColor3 = if surging then Theme.COLOR.danger else Theme.COLOR.success
 	end
 	if hintLabel then
@@ -365,7 +395,7 @@ local function describeCatch(
 ): (string, string, Color3)
 	local definition = Fish.find(caught.fishId)
 	if not definition then
-		return caught.fishId, `{Format.coins(caught.price)} monet`, Theme.COLOR.text
+		return caught.fishId, `$ {Format.coins(caught.price)}`, Theme.COLOR.text
 	end
 
 	local accent = Fish.RARITY_COLOR[definition.rarity]
@@ -380,7 +410,7 @@ local function describeCatch(
 	end
 
 	return definition.displayName,
-		`{rarity}  ·  {Format.mass(caught.mass)}  ·  {Format.coins(caught.price)} monet{extras}`,
+		`{rarity}  ·  {Format.mass(caught.mass)}  ·  $ {Format.coins(caught.price)}{extras}`,
 		accent
 end
 
@@ -423,6 +453,29 @@ function CastMeter.showResult(result: Types.CastResult)
 	local shownGeneration = beginState(accent)
 	setTensionVisible(false)
 
+	-- Złowiona ryba „wyskakuje" nad kartę jak naklejka. Ta sama ryba,
+	-- która chwilę wcześniej wyleciała z wody (`Effects/CatchShowcase`).
+	local caughtFish = result.fish
+	local definition = if caughtFish then Fish.find(caughtFish.fishId) else nil
+	local panel0 = root
+	if result.outcome == "Caught" and definition and panel0 then
+		catchPreview = FishCard.preview(definition, {
+			Name = "CatchPreview",
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.new(1, 6, 0, 46),
+			Size = UDim2.fromOffset(130, 104),
+			ZIndex = 6,
+			Parent = panel0,
+		})
+		local preview = catchPreview
+		if preview then
+			Theme.pop(preview, 0.3, 0.5)
+		end
+		if contentFrame then
+			contentFrame.Size = UDim2.new(1, -112, 1, 0)
+		end
+	end
+
 	if progressFill then
 		progressFill.Size = UDim2.fromScale(0, 1)
 	end
@@ -443,7 +496,7 @@ function CastMeter.showResult(result: Types.CastResult)
 		):Play()
 	end
 
-	task.delay(2.6, function()
+	task.delay(3.2, function()
 		if generation == shownGeneration and root then
 			root.Visible = false
 		end

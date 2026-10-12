@@ -185,13 +185,13 @@ local function buildRow(definition: Types.RodDefinition): RowHandle
 		"Frame",
 		{
 			Name = definition.id,
-			Size = UDim2.new(1, -10, 0, 80),
+			Size = UDim2.new(1, -10, 0, 84),
 			LayoutOrder = definition.order,
 			BackgroundColor3 = Theme.COLOR.panelAlt,
-			BackgroundTransparency = 0.25,
 			BorderSizePixel = 0,
 		},
 		Theme.corner(Theme.RADIUS.md),
+		Theme.stroke(Theme.COLOR.stroke, 2),
 		Theme.padding(Theme.SPACE.sm, Theme.SPACE.md),
 		preview,
 		Theme.label({
@@ -221,12 +221,12 @@ end
 function ShopPanel.mount(parent: Instance)
 	local rowList = Theme.create("ScrollingFrame", {
 		Name = "List",
-		Size = UDim2.new(1, 0, 1, -58),
-		Position = UDim2.fromOffset(0, 58),
+		Size = UDim2.new(1, 0, 1, -76),
+		Position = UDim2.fromOffset(0, 76),
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
-		ScrollBarThickness = 4,
-		ScrollBarImageColor3 = Theme.COLOR.stroke,
+		ScrollBarThickness = 6,
+		ScrollBarImageColor3 = Theme.COLOR.success,
 		CanvasSize = UDim2.new(),
 		AutomaticCanvasSize = Enum.AutomaticSize.Y,
 		ScrollingDirection = Enum.ScrollingDirection.Y,
@@ -238,11 +238,11 @@ function ShopPanel.mount(parent: Instance)
 	end)
 
 	local coins = Theme.label({
-		Size = UDim2.new(1, -46, 0, 18),
-		Position = UDim2.fromOffset(0, 28),
-		Font = Theme.FONT_BOLD,
-		TextSize = Theme.TEXT.small,
-		TextColor3 = Theme.COLOR.coin,
+		Size = UDim2.new(1, 0, 0, 20),
+		Position = UDim2.fromOffset(0, 48),
+		Font = Theme.FONT_BLACK,
+		TextSize = Theme.TEXT.body,
+		TextColor3 = Theme.COLOR.coinText,
 		Text = "",
 	})
 
@@ -254,17 +254,11 @@ function ShopPanel.mount(parent: Instance)
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.fromScale(0.5, 0.5),
 			Size = UDim2.fromOffset(460, 380),
-			BackgroundTransparency = 0.02,
 			Visible = false,
 			Parent = parent,
 		},
-		Theme.padding(Theme.SPACE.lg, Theme.SPACE.md),
-		Theme.label({
-			Size = UDim2.new(1, -46, 0, 26),
-			Font = Theme.FONT_BLACK,
-			TextSize = Theme.TEXT.lead,
-			Text = "Sklep wędkarski",
-		}),
+		Theme.padding(Theme.SPACE.md),
+		Theme.header("Sklep wędkarski", Theme.COLOR.success, { Size = UDim2.new(1, -48, 0, 42) }),
 		coins,
 		close,
 		rowList
@@ -298,7 +292,7 @@ function ShopPanel.update(profile: Types.Profile)
 
 	local coins = coinsLabel
 	if coins then
-		coins.Text = `Masz {Format.coins(profile.coins)} monet`
+		coins.Text = `Masz $ {Format.coins(profile.coins)}`
 	end
 
 	for rodId, handle in rows do
@@ -320,7 +314,7 @@ function ShopPanel.update(profile: Types.Profile)
 			Theme.setButtonColor(handle.button, Theme.COLOR.accent)
 			handle.button.TextColor3 = Theme.COLOR.textInverse
 		else
-			handle.button.Text = Format.coins(definition.price)
+			handle.button.Text = `$ {Format.coins(definition.price)}`
 			-- Przygaszamy to, czego gracza nie stać, ale przycisk zostaje
 			-- klikalny — odmowę wraz z powodem wysyła serwer.
 			Theme.setButtonColor(
@@ -332,14 +326,22 @@ function ShopPanel.update(profile: Types.Profile)
 				else Theme.COLOR.textMuted
 		end
 
-		handle.frame.BackgroundTransparency = if equipped then 0.08 else 0.25
+		-- Założona wędka świeci na zielono — „to twoja" bez czytania przycisku.
+		handle.frame.BackgroundColor3 = if equipped
+			then Theme.COLOR.success:Lerp(Color3.new(1, 1, 1), 0.7)
+			else Theme.COLOR.panelAlt
 	end
 end
 
 function ShopPanel.setVisible(visible: boolean)
-	if root then
-		root.Visible = visible
+	local panel = root
+	if not panel then
+		return
 	end
+	if visible and not panel.Visible then
+		Theme.pop(panel, 0.7)
+	end
+	panel.Visible = visible
 end
 
 function ShopPanel.isVisible(): boolean

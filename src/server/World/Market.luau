@@ -27,6 +27,8 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local Fish = require(ReplicatedStorage.Shared.Config.Fish)
+local FishModel = require(ReplicatedStorage.Shared.Util.FishModel)
 local GameConfig = require(ReplicatedStorage.Shared.Config.Game)
 
 local Build = require(script.Parent.Build)
@@ -61,13 +63,22 @@ local SPAWN_POSITION = Vector3.new(0, 0.55, 24)
 local FISH_BUYER_POSITION = Vector3.new(-17, 0, -4)
 local ROD_SHOP_POSITION = Vector3.new(17, 0, -4)
 
-local STONE = Color3.fromRGB(138, 141, 148)
-local STONE_DARK = Color3.fromRGB(104, 108, 116)
-local WOOD = Color3.fromRGB(154, 114, 74)
-local WOOD_DARK = Color3.fromRGB(104, 76, 50)
-local WOOD_BEAM = Color3.fromRGB(86, 63, 42)
-local ROOF = Color3.fromRGB(78, 84, 96)
-local ROOF_DARK = Color3.fromRGB(62, 67, 78)
+-- Paleta CUKIERKOWA: kremowy plac, ciepłe „drewno" jak z klocków, białe
+-- wykończenia. Dachy biorą kolor ze stylu stoiska, więc z daleka widać,
+-- które jest które, zanim da się przeczytać szyld.
+local STONE = Color3.fromRGB(255, 238, 206)
+local STONE_DARK = Color3.fromRGB(255, 214, 160)
+local WOOD = Color3.fromRGB(255, 200, 140)
+local WOOD_DARK = Color3.fromRGB(240, 166, 108)
+local WOOD_BEAM = Color3.fromRGB(214, 128, 88)
+local TRIM = Color3.fromRGB(255, 255, 255)
+local PARTY = {
+	Color3.fromRGB(255, 92, 120),
+	Color3.fromRGB(255, 202, 40),
+	Color3.fromRGB(76, 214, 98),
+	Color3.fromRGB(66, 164, 255),
+	Color3.fromRGB(156, 100, 255),
+}
 
 export type StallStyle = {
 	accent: Color3,
@@ -90,7 +101,7 @@ local function buildPlaza(parent: Instance)
 		Size = Vector3.new(58, 0.4, 34),
 		Position = PLAZA_CENTER + Vector3.new(0, 0.2, 0),
 		Color = STONE,
-		Material = Enum.Material.Cobblestone,
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = true,
 	})
 
@@ -101,18 +112,36 @@ local function buildPlaza(parent: Instance)
 		Size = Vector3.new(9, 0.3, 36),
 		Position = Vector3.new(0, 0.15, -16),
 		Color = STONE_DARK,
-		Material = Enum.Material.Cobblestone,
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = true,
+	})
+
+	-- Okrągły dywan pod spawnem. Koło zamiast kwadratu: w cukierkowym
+	-- świecie nic nie ma ostrych rogów, a okrąg czyta się jako „start".
+	Build.cylinder(plaza, {
+		Name = "Rug",
+		Size = Vector3.new(0.1, 22, 22),
+		CFrame = CFrame.new(SPAWN_POSITION.X, 0.42, SPAWN_POSITION.Z)
+			* CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(255, 176, 206),
+	})
+	Build.cylinder(plaza, {
+		Name = "RugRing",
+		Size = Vector3.new(0.12, 17, 17),
+		CFrame = CFrame.new(SPAWN_POSITION.X, 0.43, SPAWN_POSITION.Z)
+			* CFrame.Angles(0, 0, math.rad(90)),
+		Color = Color3.fromRGB(255, 236, 140),
 	})
 
 	local spawn = Instance.new("SpawnLocation")
 	spawn.Name = "Spawn"
-	spawn.Size = Vector3.new(12, 0.6, 12)
-	spawn.Position = SPAWN_POSITION
+	spawn.Shape = Enum.PartType.Cylinder
+	spawn.Size = Vector3.new(0.6, 12, 12)
+	spawn.CFrame = CFrame.new(SPAWN_POSITION) * CFrame.Angles(0, 0, math.rad(90))
 	spawn.Anchored = true
 	spawn.CanCollide = true
-	spawn.Material = Enum.Material.Marble
-	spawn.Color = Color3.fromRGB(196, 201, 209)
+	spawn.Material = Enum.Material.SmoothPlastic
+	spawn.Color = Color3.fromRGB(120, 226, 200)
 	spawn.TopSurface = Enum.SurfaceType.Smooth
 	spawn.BottomSurface = Enum.SurfaceType.Smooth
 	-- Zero sekund tarczy: gracz nie ma z kim walczyć, a świecąca kula wokół
@@ -158,7 +187,7 @@ local function plankWall(
 			-- Lekka wariacja koloru co trzecią deskę. Idealnie równy ton
 			-- wygląda jak plastik, nie jak drewno.
 			Color = if index % 3 == 0 then WOOD_DARK else color,
-			Material = Enum.Material.WoodPlanks,
+			Material = Enum.Material.SmoothPlastic,
 			CanCollide = true,
 		})
 	end
@@ -170,7 +199,7 @@ local function buildFrame(model: Model, base: CFrame)
 		Size = Vector3.new(WIDTH + m(0.3), DECK, DEPTH + m(0.3)),
 		CFrame = base * CFrame.new(0, DECK / 2, 0),
 		Color = WOOD_DARK,
-		Material = Enum.Material.WoodPlanks,
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = true,
 	})
 
@@ -186,8 +215,21 @@ local function buildFrame(model: Model, base: CFrame)
 					sz * (DEPTH / 2 - POST / 2)
 				),
 				Color = WOOD_BEAM,
-				Material = Enum.Material.Wood,
+				Material = Enum.Material.SmoothPlastic,
 				CanCollide = true,
+			})
+
+			-- Kulka na szczycie słupa — zabawkowy detal, który zaokrągla
+			-- sylwetkę budki na tle nieba.
+			Build.sphere(model, {
+				Name = "Finial",
+				Size = Vector3.one * POST * 2.2,
+				CFrame = base * CFrame.new(
+					sx * (WIDTH / 2 - POST / 2),
+					RIDGE + OVERHANG * 0.2,
+					sz * (DEPTH / 2 - POST / 2)
+				),
+				Color = TRIM,
 			})
 		end
 	end
@@ -199,7 +241,7 @@ local function buildFrame(model: Model, base: CFrame)
 			Size = Vector3.new(WIDTH, m(0.22), m(0.16)),
 			CFrame = base * CFrame.new(0, EAVES - m(0.11), sz * (DEPTH / 2 - POST / 2)),
 			Color = WOOD_BEAM,
-			Material = Enum.Material.Wood,
+			Material = Enum.Material.SmoothPlastic,
 		})
 	end
 end
@@ -220,7 +262,7 @@ local function buildWalls(model: Model, base: CFrame, color: Color3)
 			CFrame = base
 				* CFrame.new(sx * (WIDTH / 2 - m(0.05)), DECK + (EAVES - DECK) / 2, sideZ),
 			Color = color,
-			Material = Enum.Material.WoodPlanks,
+			Material = Enum.Material.SmoothPlastic,
 			CanCollide = true,
 		})
 	end
@@ -234,7 +276,7 @@ end
 	stopnie na sztywno. Dzięki temu zmiana RIDGE albo DEPTH nie wymaga
 	ponownego dobierania kąta — dach po prostu nadal się domyka.
 ]]
-local function buildRoof(model: Model, base: CFrame)
+local function buildRoof(model: Model, base: CFrame, style: StallStyle)
 	local run = DEPTH / 2 + OVERHANG
 	local rise = RIDGE - EAVES
 	local slope = math.sqrt(run * run + rise * rise)
@@ -252,8 +294,8 @@ local function buildRoof(model: Model, base: CFrame)
 			Name = "RoofSlab",
 			Size = Vector3.new(span, m(0.08), slope),
 			CFrame = slabCFrame,
-			Color = ROOF,
-			Material = Enum.Material.Slate,
+			Color = style.stripe,
+			Material = Enum.Material.SmoothPlastic,
 			CanCollide = true,
 		})
 
@@ -264,10 +306,11 @@ local function buildRoof(model: Model, base: CFrame)
 			local along = -slope / 2 + (row - 0.5) * (slope / rows)
 			Build.block(model, {
 				Name = "RoofBatten",
-				Size = Vector3.new(span, m(0.04), m(0.06)),
+				Size = Vector3.new(span, m(0.05), m(0.14)),
 				CFrame = slabCFrame * CFrame.new(0, m(0.06), along),
-				Color = ROOF_DARK,
-				Material = Enum.Material.Slate,
+				-- Białe pasy na kolorowym dachu: dach jak z lukru.
+				Color = TRIM,
+				Material = Enum.Material.SmoothPlastic,
 			})
 		end
 
@@ -278,7 +321,7 @@ local function buildRoof(model: Model, base: CFrame)
 				Size = Vector3.new(m(0.1), m(0.12), slope),
 				CFrame = slabCFrame * CFrame.new(sx * (WIDTH / 2 - m(0.4)), -m(0.1), 0),
 				Color = WOOD_BEAM,
-				Material = Enum.Material.Wood,
+				Material = Enum.Material.SmoothPlastic,
 			})
 		end
 	end
@@ -287,8 +330,8 @@ local function buildRoof(model: Model, base: CFrame)
 		Name = "Ridge",
 		Size = Vector3.new(span, m(0.16), m(0.18)),
 		CFrame = base * CFrame.new(0, RIDGE, 0),
-		Color = ROOF_DARK,
-		Material = Enum.Material.Slate,
+		Color = TRIM,
+		Material = Enum.Material.SmoothPlastic,
 	})
 
 	-- Szczyty: zamiast klina układamy poziome deski o malejącej długości.
@@ -306,7 +349,7 @@ local function buildRoof(model: Model, base: CFrame)
 					Size = Vector3.new(m(0.06), rise / levels, length),
 					CFrame = base * CFrame.new(sx * (WIDTH / 2 - m(0.04)), y, 0),
 					Color = WOOD,
-					Material = Enum.Material.WoodPlanks,
+					Material = Enum.Material.SmoothPlastic,
 				})
 			end
 		end
@@ -323,7 +366,7 @@ local function buildCounter(model: Model, base: CFrame, style: StallStyle): Base
 		Size = Vector3.new(WIDTH - POST * 2, COUNTER_TOP - DECK, COUNTER_DEPTH),
 		CFrame = base * CFrame.new(0, DECK + (COUNTER_TOP - DECK) / 2, frontZ),
 		Color = style.accent,
-		Material = Enum.Material.WoodPlanks,
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = true,
 	})
 
@@ -344,7 +387,7 @@ local function buildCounter(model: Model, base: CFrame, style: StallStyle): Base
 		Size = Vector3.new(WIDTH - POST, m(0.08), COUNTER_DEPTH + m(0.18)),
 		CFrame = base * CFrame.new(0, COUNTER_TOP, frontZ - m(0.04)),
 		Color = Color3.fromRGB(216, 198, 168),
-		Material = Enum.Material.Wood,
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = true,
 	})
 
@@ -355,7 +398,7 @@ local function buildCounter(model: Model, base: CFrame, style: StallStyle): Base
 		Size = Vector3.new(WIDTH - POST * 3, m(0.06), COUNTER_DEPTH * 0.8),
 		CFrame = base * CFrame.new(0, COUNTER_TOP * 0.45, frontZ + m(0.1)),
 		Color = WOOD_DARK,
-		Material = Enum.Material.Wood,
+		Material = Enum.Material.SmoothPlastic,
 	})
 
 	return counter
@@ -372,7 +415,7 @@ local function buildSign(model: Model, base: CFrame, style: StallStyle)
 			Size = Vector3.new(m(0.04), m(0.5), m(0.04)),
 			CFrame = base * CFrame.new(sx * m(1.2), EAVES - m(0.25), signZ),
 			Color = Color3.fromRGB(96, 100, 108),
-			Material = Enum.Material.Metal,
+			Material = Enum.Material.SmoothPlastic,
 		})
 	end
 
@@ -380,8 +423,9 @@ local function buildSign(model: Model, base: CFrame, style: StallStyle)
 		Name = "Sign",
 		Size = Vector3.new(m(3.2), m(0.78), m(0.1)),
 		CFrame = base * CFrame.new(0, signY, signZ),
-		Color = Color3.fromRGB(38, 42, 52),
-		Material = Enum.Material.Wood,
+		-- Biała tablica z kolorowym, obrysowanym napisem — jak przyciski w UI.
+		Color = TRIM,
+		Material = Enum.Material.SmoothPlastic,
 	})
 
 	Build.block(model, {
@@ -389,7 +433,7 @@ local function buildSign(model: Model, base: CFrame, style: StallStyle)
 		Size = Vector3.new(m(3.3), m(0.06), m(0.12)),
 		CFrame = base * CFrame.new(0, signY - m(0.4), signZ),
 		Color = style.accent,
-		Material = Enum.Material.Wood,
+		Material = Enum.Material.SmoothPlastic,
 	})
 
 	Build.signFace(board, Enum.NormalId.Front, style.title, style.subtitle, style.accent)
@@ -411,7 +455,7 @@ local function buildAwning(model: Model, base: CFrame, style: StallStyle)
 			Size = Vector3.new(stripeWidth - 0.03, m(0.05), m(1.1)),
 			CFrame = awningCFrame * CFrame.new(offsetX, 0, 0),
 			Color = if index % 2 == 0 then style.stripe else Color3.fromRGB(240, 238, 232),
-			Material = Enum.Material.Fabric,
+			Material = Enum.Material.SmoothPlastic,
 		})
 
 		-- Ząbkowana krawędź — detal, który odróżnia markizę od deski.
@@ -420,7 +464,7 @@ local function buildAwning(model: Model, base: CFrame, style: StallStyle)
 			Size = Vector3.new(stripeWidth - 0.12, m(0.22), m(0.04)),
 			CFrame = awningCFrame * CFrame.new(offsetX, -m(0.12), -m(0.55)),
 			Color = if index % 2 == 0 then style.stripe else Color3.fromRGB(240, 238, 232),
-			Material = Enum.Material.Fabric,
+			Material = Enum.Material.SmoothPlastic,
 		})
 	end
 end
@@ -453,7 +497,7 @@ local function buildCrate(model: Model, cframe: CFrame, size: number)
 		Size = Vector3.new(size, size, size),
 		CFrame = cframe,
 		Color = Color3.fromRGB(158, 118, 76),
-		Material = Enum.Material.WoodPlanks,
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = true,
 	})
 
@@ -464,7 +508,7 @@ local function buildCrate(model: Model, cframe: CFrame, size: number)
 			Size = Vector3.new(size + 0.04, size * 0.12, size + 0.04),
 			CFrame = cframe * CFrame.new(0, sy * size * 0.32, 0),
 			Color = WOOD_DARK,
-			Material = Enum.Material.Wood,
+			Material = Enum.Material.SmoothPlastic,
 		})
 	end
 end
@@ -478,7 +522,7 @@ local function buildBarrel(model: Model, cframe: CFrame)
 		Size = Vector3.new(m(0.9), m(0.62), m(0.62)),
 		CFrame = upright,
 		Color = Color3.fromRGB(122, 86, 56),
-		Material = Enum.Material.Wood,
+		Material = Enum.Material.SmoothPlastic,
 		CanCollide = true,
 	})
 
@@ -488,7 +532,7 @@ local function buildBarrel(model: Model, cframe: CFrame)
 			Size = Vector3.new(m(0.06), m(0.66), m(0.66)),
 			CFrame = upright * CFrame.new(offset * m(0.9), 0, 0),
 			Color = Color3.fromRGB(94, 98, 106),
-			Material = Enum.Material.Metal,
+			Material = Enum.Material.SmoothPlastic,
 		})
 	end
 end
@@ -503,28 +547,32 @@ local function buildFishBuyerProps(model: Model, base: CFrame)
 		Size = Vector3.new(WIDTH - m(1.2), m(0.1), COUNTER_DEPTH * 0.7),
 		CFrame = base * CFrame.new(0, COUNTER_TOP + m(0.08), frontZ - m(0.04)),
 		Color = Color3.fromRGB(198, 230, 240),
-		Material = Enum.Material.Ice,
-		Transparency = 0.25,
+		Material = Enum.Material.Glass,
+		Transparency = 0.2,
 	})
 
-	local display = {
-		Color3.fromRGB(176, 128, 72),
-		Color3.fromRGB(122, 136, 150),
-		Color3.fromRGB(232, 132, 110),
-		Color3.fromRGB(88, 124, 96),
-		Color3.fromRGB(198, 203, 211),
-	}
+	-- Na lodzie leżą PRAWDZIWE modele ryb z katalogu — te same, które gracz
+	-- zobaczy w ekwipunku. Stoisko od razu pokazuje, co tu się sprzedaje,
+	-- i zapowiada gatunki, których jeszcze nie złowił.
+	local display = { "carp", "zander", "salmon", "pike", "roach" }
 
-	for index, color in display do
-		Build.sphere(model, {
-			Name = "DisplayFish",
-			Size = Vector3.new(m(0.52), m(0.19), m(0.15)),
-			CFrame = base
-				* CFrame.new(m(-1.3 + (index - 1) * 0.65), COUNTER_TOP + m(0.17), frontZ - m(0.04))
-				* CFrame.Angles(0, math.rad(14 * index), 0),
-			Color = color,
-			Material = Enum.Material.SmoothPlastic,
-		})
+	for index, fishId in display do
+		local definition = Fish.find(fishId)
+		if not definition then
+			continue
+		end
+
+		local fish = FishModel.build(definition, { scale = 0.42 })
+		fish.Name = "DisplayFish"
+		-- Ryba leży na boku (obrót o 90° wokół osi długości), głową do gracza
+		-- pod lekkim kątem — jak na prawdziwej ladzie.
+		fish:PivotTo(
+			base
+				* CFrame.new(m(-1.3 + (index - 1) * 0.65), COUNTER_TOP + m(0.2), frontZ - m(0.04))
+				* CFrame.Angles(0, math.rad(80 + 14 * index), 0)
+				* CFrame.Angles(0, 0, math.rad(90))
+		)
+		fish.Parent = model
 	end
 
 	-- Waga uchylna na końcu lady.
@@ -533,7 +581,7 @@ local function buildFishBuyerProps(model: Model, base: CFrame)
 		Size = Vector3.new(m(0.07), m(0.8), m(0.07)),
 		CFrame = base * CFrame.new(m(1.9), COUNTER_TOP + m(0.4), frontZ),
 		Color = Color3.fromRGB(96, 100, 108),
-		Material = Enum.Material.Metal,
+		Material = Enum.Material.SmoothPlastic,
 	})
 	Build.cylinder(model, {
 		Name = "ScalePan",
@@ -542,7 +590,7 @@ local function buildFishBuyerProps(model: Model, base: CFrame)
 			* CFrame.new(m(1.9), COUNTER_TOP + m(0.08), frontZ)
 			* CFrame.Angles(0, 0, math.rad(90)),
 		Color = Color3.fromRGB(176, 180, 188),
-		Material = Enum.Material.Metal,
+		Material = Enum.Material.SmoothPlastic,
 	})
 
 	buildCrate(
@@ -566,7 +614,7 @@ local function buildRodShopProps(model: Model, base: CFrame)
 			Size = Vector3.new(WIDTH - m(1.4), m(0.08), m(0.08)),
 			CFrame = base * CFrame.new(0, y, DEPTH / 2 - m(0.25)),
 			Color = WOOD_BEAM,
-			Material = Enum.Material.Wood,
+			Material = Enum.Material.SmoothPlastic,
 		})
 	end
 
@@ -585,7 +633,7 @@ local function buildRodShopProps(model: Model, base: CFrame)
 			Size = Vector3.new(m(0.05), EAVES - m(0.9), m(0.05)),
 			CFrame = base * CFrame.new(x, EAVES / 2 + m(0.1), DEPTH / 2 - m(0.3)),
 			Color = color,
-			Material = Enum.Material.Wood,
+			Material = Enum.Material.SmoothPlastic,
 		})
 
 		-- Kołowrotek przy każdej wystawionej wędce — ten detal odróżnia
@@ -595,7 +643,7 @@ local function buildRodShopProps(model: Model, base: CFrame)
 			Size = Vector3.new(m(0.07), m(0.2), m(0.2)),
 			CFrame = base * CFrame.new(x, m(1.1), DEPTH / 2 - m(0.38)),
 			Color = Color3.fromRGB(196, 200, 208),
-			Material = Enum.Material.Metal,
+			Material = Enum.Material.SmoothPlastic,
 		})
 	end
 
@@ -605,6 +653,100 @@ local function buildRodShopProps(model: Model, base: CFrame)
 		m(0.6)
 	)
 	buildBarrel(model, base * CFrame.new(-WIDTH / 2 + m(0.7), DECK + m(0.45), DEPTH / 2 - m(0.8)))
+end
+
+-- ---------------------------------------------------------------------------
+-- Dekoracje placu
+-- ---------------------------------------------------------------------------
+
+--[[
+	Girlanda chorągiewek między dwoma słupkami.
+
+	Chorągiewki to romby (kwadrat obrócony o 45°) wiszące na zwisającej
+	linie. Romb zamiast trójkąta, bo klin w Robloxie trzeba by obracać
+	osobno dla każdej flagi, a obrócony kwadrat jest symetryczny i zawsze
+	wygląda dobrze.
+]]
+local function buildBunting(parent: Instance, from: Vector3, to: Vector3, sag: number)
+	for _, point in { from, to } do
+		Build.post(parent, Vector3.new(point.X, 0, point.Z), point.Y + 0.6, 0.5, {
+			Name = "BuntingPole",
+			Color = TRIM,
+			CanCollide = true,
+		})
+		Build.sphere(parent, {
+			Name = "BuntingTop",
+			Size = Vector3.one * 1.1,
+			CFrame = CFrame.new(point + Vector3.new(0, 0.9, 0)),
+			Color = PARTY[1],
+		})
+	end
+
+	local flags = math.floor((to - from).Magnitude / 2.4)
+	local direction = (to - from).Unit
+	local facing = CFrame.lookAt(Vector3.zero, Vector3.new(direction.Z, 0, -direction.X))
+
+	for index = 1, flags do
+		local t = (index - 0.5) / flags
+		-- Zwis paraboliczny: 4t(1-t) daje 0 przy słupkach i 1 pośrodku.
+		local point = from:Lerp(to, t) - Vector3.new(0, sag * 4 * t * (1 - t), 0)
+		Build.block(parent, {
+			Name = "Flag",
+			Size = Vector3.new(1.1, 1.1, 0.08),
+			CFrame = CFrame.new(point - Vector3.new(0, 0.55, 0))
+				* facing.Rotation
+				* CFrame.Angles(0, 0, math.rad(45)),
+			Color = PARTY[(index % #PARTY) + 1],
+		})
+	end
+end
+
+--[[ Pęk balonów na sznurkach. Lekko kołyszą się w różne strony,
+     więc nie wyglądają jak sklejona kiść winogron. ]]
+local function buildBalloons(parent: Instance, anchor: Vector3, seed: number)
+	local generator = Random.new(seed)
+
+	for index = 1, 5 do
+		local top = anchor
+			+ Vector3.new(
+				generator:NextNumber(-1.4, 1.4),
+				8 + generator:NextNumber(0, 2.5),
+				generator:NextNumber(-1.4, 1.4)
+			)
+		local stringLength = (top - anchor).Magnitude
+
+		Build.block(parent, {
+			Name = "BalloonString",
+			Size = Vector3.new(0.06, 0.06, stringLength),
+			CFrame = CFrame.lookAt(anchor:Lerp(top, 0.5), top),
+			Color = TRIM,
+		})
+		Build.ellipsoid(parent, {
+			Name = "Balloon",
+			Size = Vector3.new(2, 2.4, 2),
+			CFrame = CFrame.new(top + Vector3.new(0, 1.1, 0)),
+			Color = PARTY[(index + seed) % #PARTY + 1],
+		})
+	end
+
+	Build.sphere(parent, {
+		Name = "BalloonWeight",
+		Size = Vector3.one * 0.8,
+		CFrame = CFrame.new(anchor),
+		Color = PARTY[2],
+		CanCollide = true,
+	})
+end
+
+local function buildFestive(parent: Instance)
+	local festive = Build.model(parent, "Festive")
+
+	-- Dwie girlandy w poprzek placu: z daleka „to jest centrum gry".
+	buildBunting(festive, Vector3.new(-26, 11, 6), Vector3.new(26, 11, 6), 2.6)
+	buildBunting(festive, Vector3.new(-26, 11, 30), Vector3.new(26, 11, 30), 2.6)
+
+	buildBalloons(festive, Vector3.new(-10, 0.6, 30), 1)
+	buildBalloons(festive, Vector3.new(10, 0.6, 30), 3)
 end
 
 -- ---------------------------------------------------------------------------
@@ -623,7 +765,7 @@ local function buildStall(
 
 	buildFrame(model, base)
 	buildWalls(model, base, style.accent)
-	buildRoof(model, base)
+	buildRoof(model, base, style)
 	buildAwning(model, base, style)
 	buildSign(model, base, style)
 	buildLighting(model, base)
@@ -654,10 +796,11 @@ function Market.build(parent: Instance): Stands
 	local market = Build.model(parent, "Market")
 
 	buildPlaza(market)
+	buildFestive(market)
 
 	local fishBuyer = buildStall(market, FISH_BUYER_POSITION, {
-		accent = Color3.fromRGB(86, 164, 128),
-		stripe = Color3.fromRGB(58, 132, 102),
+		accent = Color3.fromRGB(90, 200, 255),
+		stripe = Color3.fromRGB(40, 150, 240),
 		title = "Skup ryb",
 		subtitle = "Sprzedaj cały połów",
 		promptAction = "Sprzedaj ryby",
@@ -665,8 +808,8 @@ function Market.build(parent: Instance): Stands
 	}, buildFishBuyerProps)
 
 	local rodShop = buildStall(market, ROD_SHOP_POSITION, {
-		accent = Color3.fromRGB(206, 152, 74),
-		stripe = Color3.fromRGB(188, 124, 54),
+		accent = Color3.fromRGB(255, 176, 60),
+		stripe = Color3.fromRGB(255, 92, 120),
 		title = "Sklep wędkarski",
 		subtitle = "Lepsza wędka = rzadsze ryby",
 		promptAction = "Otwórz sklep",

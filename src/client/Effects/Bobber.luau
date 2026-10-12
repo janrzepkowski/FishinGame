@@ -248,6 +248,12 @@ function Bobber.launch()
 	end)
 end
 
+--[[ Gdzie teraz jest spławik — stąd wyskakuje złowiona ryba. ]]
+function Bobber.position(): Vector3?
+	local float = bobber
+	return if float then float.Position else nil
+end
+
 --[[ Szarpnięcie w momencie brania. Poza paskiem UI to jedyna informacja
      „teraz!", a przy łowieniu wzrok jest na wodzie, nie na interfejsie. ]]
 function Bobber.dip()
