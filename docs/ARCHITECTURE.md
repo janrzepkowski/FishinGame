@@ -549,17 +549,36 @@ Rankingujemy **`totalEarned`** (suma zarobiona przez całe życie konta), nie
 `coins`. Gdyby liczyły się monety w kieszeni, zakup wędki cofałby gracza
 w rankingu — czyli gra karałaby za granie w nią zgodnie z zamysłem.
 
-### Zapis: cyklicznie plus przy wyjściu
+### Dwa źródła: zapisana czołówka plus gracze na serwerze
 
-Sam zapis na wyjściu wygląda poprawnie, dopóki serwer kończy się normalnie.
-W praktyce serwery padają, a Roblox nie gwarantuje, że `PlayerRemoving` zdąży
-dokończyć zapis — gracz traciłby wtedy cały dorobek sesji w rankingu.
+Sam DataStore jest spóźniony o cykl zapisu i odczytu, a w Studio bez dostępu
+do API nie ma go wcale. Gracz sprzedawał połów i przez kilka minut nie widział
+w rankingu ani siebie, ani kolegi stojącego obok.
 
-Drugą skrajnością byłby zapis po każdej sprzedaży: przy 50 graczach na serwerze
-to ~100 zapisów na minutę na dane, które i tak odświeżamy raz na minutę.
+Dlatego ranking składa się z dwóch list (`shared/Util/Ranking.merge`):
+czołówki odczytanej z `OrderedDataStore` i bieżących wyników graczy z tego
+serwera. Ten sam gracz zwykle jest w obu — bierzemy większą wartość, bo
+`totalEarned` tylko rośnie. Złożenie nie dotyka DataStore, więc ranking
+rozsyłamy przy każdej zmianie wyniku i przy każdym wejściu lub wyjściu gracza.
 
-Stoimy pośrodku: cykl co 2 minuty, z pominięciem graczy, których wynik się nie
-zmienił. W praktyce kilka zapisów na minutę na serwer.
+`LeaderboardService` trzyma wyniki we własnej tabeli (`latest`), zasilanej
+przez `DataService.onProfileChanged`. Nie czyta profilu w chwili zapisu: przy
+wyjściu gracza `DataService` zdejmuje profil we własnym handlerze
+`PlayerRemoving` i ranking dostawał już `nil` — wynik wychodzącego gracza
+nie był zapisywany wcale.
+
+### Zapis: po zmianie, przy wyjściu i cyklicznie
+
+- **Po zmianie wyniku**, z opóźnieniem 30 s (`LEADERBOARD_SUBMIT_DEBOUNCE`):
+  seria sprzedaży kończy się jednym zapytaniem, nie pięcioma.
+- **Przy wyjściu gracza.** Roblox nie gwarantuje, że `PlayerRemoving` zdąży
+  dokończyć zapis przy padającym serwerze — stąd dwa pozostałe punkty.
+- **Cyklicznie co 2 minuty** jako siatka bezpieczeństwa: łapie zapisy
+  odrzucone przez limit zapytań albo chwilową awarię DataStore. Graczy,
+  których wynik się nie zmienił, pomijamy.
+
+Zapis po KAŻDEJ sprzedaży byłby prostszy, ale przy 50 graczach to ~100
+zapytań na minutę na dane, które i tak odświeżamy raz na minutę.
 
 ### `UpdateAsync` z `max`, nie `SetAsync`
 
