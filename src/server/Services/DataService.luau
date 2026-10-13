@@ -41,6 +41,8 @@ local persistenceEnabled = false
 
 -- Serwisy, które chcą coś zrobić dokładnie raz, gdy profil się wczyta.
 local readyListeners: { (Player) -> () } = {}
+-- Serwisy, które reagują na każdą zmianę profilu (np. ranking).
+local changedListeners: { (Player, Profile) -> () } = {}
 
 -- ---------------------------------------------------------------------------
 -- Domyślny profil i walidacja wczytanych danych
@@ -407,7 +409,26 @@ function DataService.mutate(player: Player, mutator: (Profile) -> ()): boolean
 
 	mutator(profile)
 	DataService.push(player)
+
+	for _, listener in table.clone(changedListeners) do
+		-- `xpcall`, bo wywrócony słuchacz nie może zamienić udanej zmiany
+		-- profilu w błąd u wywołującego — monety są już dopisane.
+		xpcall(listener, function(err)
+			warn(`[DataService] listener zmiany profilu rzucił błędem: {tostring(err)}`)
+		end, player, profile)
+	end
 	return true
+end
+
+--[[
+	Rejestruje reakcję na KAŻDĄ zmianę profilu przez `mutate`.
+
+	Słuchacz dostaje profil tylko do odczytu i nie może yieldować: leci
+	synchronicznie w środku `mutate`, więc `task.wait` wstrzymałby handler
+	sprzedaży albo złowienia ryby.
+]]
+function DataService.onProfileChanged(listener: (Player, Profile) -> ())
+	table.insert(changedListeners, listener)
 end
 
 function DataService.save(player: Player): boolean

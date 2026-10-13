@@ -129,6 +129,10 @@ local Game = {
 	-- pokazujemy dane sprzed minuty — częstszy zapis nic by nie przyspieszył,
 	-- a zjadałby limit zapytań.
 	LEADERBOARD_SUBMIT_INTERVAL = 120,
+	-- Po zmianie wyniku zapisujemy go najwcześniej po tylu sekundach
+	-- i nie częściej niż raz na tyle. Kilka sprzedaży pod rząd to jeden
+	-- zapis, a przy 50 graczach mieścimy się w limicie z dużym zapasem.
+	LEADERBOARD_SUBMIT_DEBOUNCE = 30,
 
 	-- ---------------------------------------------------------------------
 	-- Sklep / skup
