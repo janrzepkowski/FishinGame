@@ -45,18 +45,36 @@ dobrane na zrzutach o 13:00 (`DevClockTime` na Workspace zamraża godzinę).
 
 | Właściwość | Wartość |
 |---|---|
-| `Lighting.Brightness` | 1,6 |
+| `Lighting.Brightness` | 2,3 |
 | `Lighting.ExposureCompensation` | −0,45 |
-| `Lighting.Ambient` / `OutdoorAmbient` | 0,30 0,30 0,40 / 0,44 0,46 0,54 |
-| `Bloom` | Intensity 0,2, Threshold 2,2 |
-| `ColorCorrection.Saturation` | 0,20 |
-| `Atmosphere` | Density 0,14, Haze 0,3 |
+| `Lighting.Ambient` / `OutdoorAmbient` | 46, 44, 80 / 66, 74, 122 |
+| `Lighting.ColorShift_Top` | 255, 232, 196 |
+| `Lighting.ShadowSoftness` | 0,1 |
+| `EnvironmentDiffuseScale` / `SpecularScale` | 0,3 / 0,55 |
+| `Bloom` | Intensity 0,22, Threshold 2,1 |
+| `ColorCorrection` | Saturation 0,20, Contrast 0,12 |
+| `Atmosphere` | Density 0,14, Haze 0,3, Glare 0,08 |
 | `Terrain.WaterColor` | 36, 150, 196; Reflectance 0,12; Transparency 0,3 |
 | trawa / piasek terenu | 118, 206, 104 / 255, 226, 170 |
 
+**Kontrast robi różnica między słońcem a cieniem, nie sama jasność.** Słońce
+jest mocne i ciepłe, a światło otoczenia ciemne i chłodne (fioletowoniebieskie)
+— dzięki temu bryły mają wyraźny światłocień, a cienie na trawie są widoczne.
+Pierwsza próba naprawy przepalenia obniżyła jasność i podniosła światło
+otoczenia: obraz przestał się przepalać, ale zrobił się płaski, bez cieni.
+Nie wracaj do tego — przepalenie trzyma w ryzach ujemna ekspozycja.
+
+Cień rzuca wszystko, co ma bryłę (drzewa, krzaki, grzyby, stoiska, latarnie).
+Wyłączony zostaje tylko dla drobnicy i płaskich wzorów (płatki, trzciny,
+krążki na posadzce) oraz dla wzgórz na horyzoncie.
+
+Cienie rysują się dopiero przy wyższej jakości grafiki. Przy „Automatic"
+w małym oknie Studio potrafi ich nie pokazać wcale — do oceny światła ustaw
+jakość ręcznie (Studio Settings → Rendering → Quality Level).
+
 **Pastele przepalają się bardzo łatwo.** Przy jasności 2,6 i dodatniej
 ekspozycji plac był białą plamą bez kształtu. Dlatego ekspozycja jest ujemna,
-bloom prawie wyłączony, a „biel" palety to 226, 230, 242, nie 255.
+bloom słaby, a „biel" palety to 226, 230, 242, nie 255.
 
 Fale zostają drobne (`WaterWaveSize` 0,15) — to decyzja rozgrywki, nie
 estetyki: przy większych spławik skacze i nie da się odczytać brania.

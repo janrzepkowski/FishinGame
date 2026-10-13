@@ -312,7 +312,6 @@ local function buildRoof(model: Model, base: CFrame, style: StallStyle): CFrame
 				math.sin(angle) * ROOF_RADIUS
 			),
 			Color = C.white,
-			CastShadow = false,
 		})
 	end
 

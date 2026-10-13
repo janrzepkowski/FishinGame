@@ -233,7 +233,6 @@ local function bush(parent: Instance, generator: Random, x: number, z: number, c
 				z + math.sin(angle) * size * 0.4
 			),
 			Color = color,
-			CastShadow = false,
 		})
 	end
 
@@ -316,7 +315,6 @@ local function mushroom(parent: Instance, generator: Random, x: number, z: numbe
 		Name = "MushroomStem",
 		Color = C.cream,
 		CanCollide = size > 2.4,
-		CastShadow = false,
 	})
 	local cap = base * CFrame.new(0, stem, 0)
 	Build.ellipsoid(parent, {
