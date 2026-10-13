@@ -80,8 +80,13 @@ jobs:
             --ignore="Packages/**" \
             src
 
+      # `build/` jest w .gitignore, więc na świeżym checkoucie nie istnieje,
+      # a rojo nie tworzy brakujących katalogów — bez `mkdir` ten krok padał
+      # na każdym PR-ze z „No such file or directory".
       - name: Build pliku miejsca
-        run: rojo build default.project.json --output build/FishinGame.rbxl
+        run: |
+          mkdir -p build
+          rojo build default.project.json --output build/FishinGame.rbxl
 
       # Gotowy .rbxl do pobrania z PR-a. Recenzent może go otworzyć w Studio
       # i zagrać, zamiast wierzyć na słowo, że „u mnie działa”.
